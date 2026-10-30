@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>About us &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html" class="current">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="about-us">About us<a class="headerlink" href="#about-us" title="Link to this section">#</a></h1>
+<p>This framework is the experimental side of the paper <em>SIREN: Table-Driven Real-Time MAC Scheduler</em>. The paper
+proposes SIREN, the table-driven scheduler that the code calls <code>ilp</code>. Its
+four authors are researchers at the Laboratoire de Traitement et Communication de l'Information (LTCI), Télécom Paris.</p>
+<h2 id="researchers">Researchers<a class="headerlink" href="#researchers" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Researcher</th>
+<th align="left">Affiliation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Alaf Nascimento</td>
+<td align="left">LTCI, Télécom Paris, Institut Polytechnique de Paris, France</td>
+</tr>
+<tr>
+<td align="left">Samuel Tardieu</td>
+<td align="left">LTCI, Télécom Paris, Institut Polytechnique de Paris, France</td>
+</tr>
+<tr>
+<td align="left">Philippe Martins</td>
+<td align="left">LTCI, Télécom Paris, Institut Polytechnique de Paris, France</td>
+</tr>
+<tr>
+<td align="left">Laurent Pautet</td>
+<td align="left">LTCI, Télécom Paris, Institut Polytechnique de Paris, France</td>
+</tr>
+</tbody>
+</table>
+</div><p>Each author can be reached at <code>firstname.lastname@telecom-paris.fr</code>.</p>
+<h2 id="funding">Funding<a class="headerlink" href="#funding" title="Link to this section">#</a></h2>
+<p>This work was supported by the France 2030 ANR (Agence nationale de la
+recherche) project "PEPR Future Networks" (reference ANR-22-PEFT-0003).</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="known_issues.html">&larr; Known issues</a></div>
+<p class="source">Generated from <code>doc/about.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#researchers">Researchers</a></li><li class="l2"><a href="#funding">Funding</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

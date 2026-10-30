@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ILP evaluation (siren) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="generate_flowset.html">Flowset generation</a></li><li><a href="planning.html">Configuration planning</a></li><li><a href="evaluation.html" class="current">ILP evaluation (siren)</a></li><li><a href="../baselines/index.html">Baselines</a><ul><li><a href="../baselines/rr.html">Round-robin (rr)</a></li><li><a href="../baselines/pf.html">Proportional fair (pf)</a></li><li><a href="../baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="../baselines/must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="ilp-evaluation-siren">ILP evaluation (<code>siren</code>)<a class="headerlink" href="#ilp-evaluation-siren" title="Link to this section">#</a></h1>
+<p><code>offline_phase/siren/</code> implements Section VI: for every candidate
+configuration of a flowset it builds a <strong>time-indexed ILP</strong> over one
+hyperperiod and solves it with <a href="https://www.gurobi.com">Gurobi</a> 13.0, through
+its C API. A schedulable candidate yields a <strong>dispatch table</strong> (the start time
+and HARQ process of every TB) that meets every deadline and never exceeds
+<code>B^max</code> RBs in any TTI. The program is <code>siren</code>; in the reports and CSVs,
+SIREN is the method <code>ilp</code>.</p>
+<h2 id="build">Build<a class="headerlink" href="#build" title="Link to this section">#</a></h2>
+<p>Requires Gurobi 13.0 (the paper's runs used 13.0.1), CMake, a C++17 compiler
+and the system <code>nlohmann/json</code> package (<code>nlohmann-json3-dev</code>). Gurobi ships
+neither a CMake package nor a pkg-config file: <code>GUROBI_HOME</code> is the <code>linux64</code>
+directory of the unpacked Gurobi distribution, which holds
+<code>include/gurobi_c.h</code> and <code>lib/libgurobi130.so</code>.</p>
+<pre><code class="language-bash">export GUROBI_HOME=/path/to/gurobi1301/linux64
+cd offline_phase/siren
+make                         # CMake build -&gt; ./siren
+</code></pre>
+<p><code>scripts/install.sh</code> (or <code>install_conda.sh</code>) and the <code>build</code> stage of
+<code>scripts/run_paper_experiment.sh</code> run the same <code>make</code>. Without Gurobi under
+<code>GUROBI_HOME</code>, CMake stops with <code>Gurobi 13.0 not found under GUROBI_HOME=...</code>.
+The build tree's RPATH points at <code>$GUROBI_HOME/lib</code>, so <code>./siren</code> runs without
+<code>LD_LIBRARY_PATH</code>. The <code>gurobipy</code> wheel from pip is not enough: it has no C
+headers.</p>
+<h2 id="license">License<a class="headerlink" href="#license" title="Link to this section">#</a></h2>
+<p>Building needs no license; running does. Each <code>siren</code> process starts one
+Gurobi environment, and so checks out one license token, for its whole sweep
+of a flowset. Gurobi looks for the license in <code>GRB_LICENSE_FILE</code>, then in its
+default places such as <code>~/gurobi.lic</code>. A run that gets no license exits with
+status 1 before solving anything (<code>Cannot start Gurobi: ...</code>), so the pair is
+marked failed rather than given a wrong verdict.</p>
+<p>With a license that allows a limited number of processes at once, that
+number bounds the workers: <code>run_paper_experiment.sh</code> runs one <code>siren</code> per
+worker, so the workers of every machine sharing the license must stay within
+it. A license file (<code>gurobi.lic</code>) holds private keys: keep it out of the
+repository (<code>.gitignore</code> ignores every <code>gurobi.lic</code>).</p>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">./siren planner_report.json \
+    --n-rb 135 --m-harq 3 --tti 0.25 \
+    --objective rb_peak --rb-peak-search bounded --timeout 0 --candidate-timeout 60 \
+    --output-scheduling offline_phase_report.json --schedule-dir out/
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Meaning</th>
+<th align="left">Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>&lt;planner_report.json&gt;</code></td>
+<td align="left">the planner's output (positional, required)</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><code>--n-rb &lt;int&gt;</code></td>
+<td align="left"><code>B^max</code>, RBs per TTI</td>
+<td align="left"><code>50</code></td>
+</tr>
+<tr>
+<td align="left"><code>--m-harq &lt;int&gt;</code></td>
+<td align="left"><code>M</code>, HARQ processes</td>
+<td align="left"><code>2</code></td>
+</tr>
+<tr>
+<td align="left"><code>--tti &lt;ms&gt;</code></td>
+<td align="left">the time unit, <strong>milliseconds</strong>; must be the TTI the planner used for <code>C_i</code></td>
+<td align="left"><code>0.25</code></td>
+</tr>
+<tr>
+<td align="left"><code>--objective &lt;name&gt;</code></td>
+<td align="left"><code>feasibility</code>, <code>rb_peak</code> or <code>harq</code> (<code>machines</code> is accepted for <code>harq</code>)</td>
+<td align="left"><code>feasibility</code></td>
+</tr>
+<tr>
+<td align="left"><code>--rb-peak-search &lt;mode&gt;</code></td>
+<td align="left"><code>rb_peak</code> only: <code>full</code> or <code>bounded</code> (see below)</td>
+<td align="left"><code>full</code></td>
+</tr>
+<tr>
+<td align="left"><code>--timeout &lt;s&gt;</code></td>
+<td align="left">budget for the whole candidate sweep; <code>0</code> = none</td>
+<td align="left"><code>300</code></td>
+</tr>
+<tr>
+<td align="left"><code>--candidate-timeout &lt;s&gt;</code></td>
+<td align="left">cap per candidate; <code>0</code> = none</td>
+<td align="left"><code>0</code></td>
+</tr>
+<tr>
+<td align="left"><code>--output-scheduling &lt;path&gt;</code></td>
+<td align="left">write the report to this exact path; otherwise print it to stdout</td>
+<td align="left">stdout</td>
+</tr>
+<tr>
+<td align="left"><code>--schedule-dir &lt;dir&gt;</code></td>
+<td align="left">where to write one <code>combo_&lt;index&gt;.json</code> per schedulable candidate</td>
+<td align="left"><code>schedules</code></td>
+</tr>
+<tr>
+<td align="left"><code>--no-schedules</code></td>
+<td align="left">do not write dispatch tables</td>
+<td align="left">off</td>
+</tr>
+<tr>
+<td align="left"><code>--stop-at-first</code></td>
+<td align="left">stop the sweep at the first schedulable candidate (also <code>SIREN_STOP_AT_FIRST=1</code> in the environment); the report records it as <code>config.stop_at_first</code>. The paper's runs do not use it</td>
+<td align="left">off</td>
+</tr>
+<tr>
+<td align="left"><code>--quiet</code>, <code>-q</code></td>
+<td align="left">no per-candidate progress on stderr</td>
+<td align="left">off</td>
+</tr>
+</tbody>
+</table>
+</div><p>The defaults above are the binary's. <code>scripts/run_paper_experiment.sh</code> always
+passes the paper's settings: <code>--n-rb</code> the pair's budget, <code>--m-harq 3</code>,
+<code>--tti 0.25</code>, <code>--objective rb_peak --rb-peak-search bounded</code>, <code>--timeout 0</code>
+and <code>--candidate-timeout 60</code>. The upper-layer delay <code>t_up</code> is not an option:
+<code>siren</code> reads <code>parameters.t_up_ms</code> from the planner report and refuses a
+report without it.</p>
+<h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Link to this section">#</a></h2>
+<ol>
+<li><strong>Load</strong> the planner report. If any flow has an empty Pareto set, write a
+   report with <code>infeasible_flows</code> set and no candidate tested, and exit 0.</li>
+<li><strong>Start Gurobi</strong> (one environment, one license token, for the whole run).</li>
+<li><strong>Enumerate</strong> the cross-product of the flows' configurations (one
+   <code>(segmentation option, MCS combination)</code> per flow) as a mixed-radix
+   odometer: the last flow advances fastest, starting from the first choice of
+   every flow. A candidate's <code>combo_index</code> is its 1-based position in that
+   order.</li>
+<li>For each candidate, <strong>resolve</strong> the task set on the TTI grid:
+   <code>period / TTI</code> must be an integer (otherwise the run aborts: the hyperperiod
+   would not be a feasibility interval), the deadline is rounded <strong>down</strong> and
+   <code>C</code> and <code>t_up</code> <strong>up</strong>, so rounding can never make an infeasible task set
+   look feasible. <code>C = A * t_tx</code> is how long a TB holds its HARQ process and
+   RBs; <code>t_up</code> holds neither, but the packet is delivered <code>t_up</code> after its last
+   TB ends, so every TB must end by its deadline less <code>t_up</code>.</li>
+<li><strong>Expand jobs</strong> over <code>H = lcm(T_i)</code>: <code>N_i</code> identical jobs per release of
+   flow <code>i</code>. Fast paths without the solver: a task with <code>D &gt; T</code> is rejected (the
+   hyperperiod is a feasibility interval only for constrained deadlines), and a
+   job whose window is empty (<code>C + t_up &gt; D</code>) makes the candidate infeasible.</li>
+<li><strong>Build and solve</strong> the ILP (below) with Gurobi (see
+   <a href="#solver-settings-and-outcomes">Solver settings and outcomes</a>).</li>
+<li>Write a dispatch table for every schedulable candidate and, at the end, the
+   report summarising the sweep.</li>
+</ol>
+<p>The sweep does <strong>not</strong> stop at the first schedulable candidate: it decides
+every candidate (or as many as the budgets allow), and reports all the
+schedulable ones.</p>
+<h3 id="the-model">The model<a class="headerlink" href="#the-model" title="Link to this section">#</a></h3>
+<p>Binary <code>x[j, p, t] = 1</code> when job <code>j</code> starts at TTI <code>t</code> on HARQ process <code>p</code>,
+created only for <code>t</code> in the job's window <code>[r_j, d_j - t_up - C_j]</code>; variables
+outside it are never generated, which is what keeps the model small. A job
+occupies its process and <code>B_j</code> RBs during <code>[t, t + C_j)</code> only.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Constraint</th>
+<th align="left">Equation</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">assignment</td>
+<td align="left">(7)</td>
+<td align="left">every job starts exactly once</td>
+</tr>
+<tr>
+<td align="left">HARQ capacity</td>
+<td align="left">(8)</td>
+<td align="left">at most one job runs on a process at any TTI</td>
+</tr>
+<tr>
+<td align="left">RB capacity</td>
+<td align="left">(9)</td>
+<td align="left">the RBs of the jobs running at any TTI total at most <code>B^max</code></td>
+</tr>
+<tr>
+<td align="left">symmetry breaking</td>
+<td align="left">(10)</td>
+<td align="left">within one release of one flow, segment <code>a</code> starts no later than segment <code>a+1</code></td>
+</tr>
+</tbody>
+</table>
+</div><div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Objective</th>
+<th align="left">Equations</th>
+<th align="left">Adds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>feasibility</code></td>
+<td align="left">none</td>
+<td align="left">nothing: any feasible table</td>
+</tr>
+<tr>
+<td align="left"><code>harq</code></td>
+<td align="left">(11) and (12)</td>
+<td align="left">one binary per process; minimises the number of processes used; reports <code>harq_used</code></td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak</code></td>
+<td align="left">(13) and (14)</td>
+<td align="left">an integer peak <code>P &lt;= B^max</code> bounding every TTI's usage; minimises it; reports <code>rb_peak_used</code></td>
+</tr>
+</tbody>
+</table>
+</div><p>Because of the shared RB constraint, the table is not the schedule of any
+fixed-priority or EDF rule: the solver may delay a job that a priority rule
+would start. Treat the table itself as the schedule.</p>
+<p>The formulation is written up in LaTeX in <code>src/latex/</code> (<code>main.tex</code>,
+<code>sysmodel.tex</code>, and the compiled <code>main.pdf</code>).</p>
+<h3 id="solver-settings-and-outcomes">Solver settings and outcomes<a class="headerlink" href="#solver-settings-and-outcomes" title="Link to this section">#</a></h3>
+<p>Set once on the Gurobi environment, so every model inherits them:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Parameter</th>
+<th align="left">Value</th>
+<th align="left">Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>OutputFlag</code></td>
+<td align="left">0</td>
+<td align="left">no log on stdout, where the report goes without <code>--output-scheduling</code></td>
+</tr>
+<tr>
+<td align="left"><code>Threads</code></td>
+<td align="left">1</td>
+<td align="left">the experiments run one process per core</td>
+</tr>
+<tr>
+<td align="left"><code>MIPGap</code>, <code>MIPGapAbs</code></td>
+<td align="left">0</td>
+<td align="left">every objective is an integer: the optimum is closed exactly</td>
+</tr>
+<tr>
+<td align="left"><code>TimeLimit</code></td>
+<td align="left">per candidate</td>
+<td align="left">what is left of <code>--timeout</code>, or <code>--candidate-timeout</code>, at least 1 s</td>
+</tr>
+</tbody>
+</table>
+</div><div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Gurobi status</th>
+<th align="left">Outcome of the candidate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>OPTIMAL</code></td>
+<td align="left">schedulable: the table is read from the variables at 1 (value &gt; 0.5)</td>
+</tr>
+<tr>
+<td align="left"><code>INFEASIBLE</code>, <code>INF_OR_UNBD</code></td>
+<td align="left">not schedulable (every variable is bounded, so the model cannot be unbounded)</td>
+</tr>
+<tr>
+<td align="left"><code>TIME_LIMIT</code>, <code>ITERATION_LIMIT</code></td>
+<td align="left"><strong>timed out</strong>: undecided, even if a feasible solution was found</td>
+</tr>
+<tr>
+<td align="left">anything else, or an API error</td>
+<td align="left"><strong>solver error</strong>: undecided, logged with the status and listed in <code>errored_combos</code></td>
+</tr>
+</tbody>
+</table>
+</div><p>Every report records the Gurobi library's version in <code>config.solver</code> (for
+example <code>gurobi 13.0.1</code>). <code>run_paper_experiment.sh</code> refuses a sweep tree whose
+ILP reports lack it.</p>
+<h3 id="two-time-budgets">Two time budgets<a class="headerlink" href="#two-time-budgets" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Budget</th>
+<th align="left">Scope</th>
+<th align="left">When it runs out</th>
+<th align="left">Recorded as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--candidate-timeout</code></td>
+<td align="left">one candidate</td>
+<td align="left">that candidate is skipped; the sweep continues</td>
+<td align="left">its index in <code>timed_out_combos</code>, counted in <code>num_combinations_timed_out</code></td>
+</tr>
+<tr>
+<td align="left"><code>--timeout</code></td>
+<td align="left">the whole sweep</td>
+<td align="left">the sweep ends; untested candidates are never reached</td>
+<td align="left"><code>timed_out: true</code>; <code>num_combinations_tested</code> says how far it got</td>
+</tr>
+</tbody>
+</table>
+</div><p>A candidate gets whichever is smaller: the per-candidate cap or what is left
+of the sweep budget. Both are wall-clock times. Either way a timed-out
+candidate is <strong>undecided</strong>, never "unschedulable", and the analysis scores the
+flowset <code>timeout</code> when no candidate was proved schedulable. A candidate ending
+in a solver error is undecided too (<code>num_combinations_errored</code>), and the sweep
+goes on; <code>collect_verdicts.py</code> prints a warning when any flowset has one. The
+per-candidate cap exists so one pathological candidate cannot consume the
+whole flowset's budget.</p>
+<h3 id="bounded-rb_peak-search">Bounded <code>rb_peak</code> search<a class="headerlink" href="#bounded-rb_peak-search" title="Link to this section">#</a></h3>
+<p>With <code>--objective rb_peak --rb-peak-search bounded</code> (what the paper's runs
+use), the sweep runs in two passes:</p>
+<ol>
+<li>Decide every candidate with the cheaper <code>feasibility</code> objective.</li>
+<li>Sort the schedulable ones by their mean RB usage over the hyperperiod,
+   <code>Σ N_i · B_i · C_i / T_i</code> (no table's peak can be below its mean), and
+   re-solve them with the <code>rb_peak</code> objective in that order. Stop as soon as
+   the best peak found is <code>&lt;= ceil(mean)</code> of the next candidate: no remaining
+   candidate can beat it.</li>
+</ol>
+<p>The report then carries an <code>rb_peak_search</code> block (candidates solved, pruned by
+the bound, timed out, ended in a solver error; best peak and its candidate; and
+whether that best is optimal over the decided candidates). <code>full</code> minimises the
+peak on every candidate directly.</p>
+<h2 id="outputs">Outputs<a class="headerlink" href="#outputs" title="Link to this section">#</a></h2>
+<ul>
+<li><code>offline_phase_report.json</code> (<code>--output-scheduling</code>): the verdict over the
+  sweep: candidate counts, timed-out and solver-error candidates, and one entry
+  per schedulable candidate with its flows, model size and solve time.</li>
+<li><code>combo_&lt;index&gt;.json</code> (<code>--schedule-dir</code>): one dispatch table per schedulable
+  candidate, <code>&lt;index&gt;</code> zero-padded to the width of the candidate count. Under
+  the bounded <code>rb_peak</code> search, the tables re-solved in pass 2 are overwritten
+  with their minimum-peak version.</li>
+</ul>
+<p>Both formats are specified in <a href="../output_formats.html">Output formats</a>.</p>
+<h2 id="checking-a-table-independently">Checking a table independently<a class="headerlink" href="#checking-a-table-independently" title="Link to this section">#</a></h2>
+<p><code>validate_schedule.py</code> re-checks dispatch tables against constraints (7) to (10)
+from the <code>*_tti</code> fields alone, without the solver: every release of every flow
+holds each of its subtasks exactly once, every TB ends <code>config.t_up_tti</code> before
+its deadline, no process runs two TBs at once, the RBs never exceed <code>B^max</code>,
+and segments start in order:</p>
+<pre><code class="language-bash">python3 offline_phase/siren/validate_schedule.py \
+    output/sweep/rb135/reports/ilp/flowset_0001/combo_*.json
+</code></pre>
+<p>With no argument it checks <code>schedules/*.json</code>.</p>
+<h2 id="cost">Cost<a class="headerlink" href="#cost" title="Link to this section">#</a></h2>
+<p>The sweep, not a single ILP, dominates the offline cost: a flowset is one
+independent ILP per candidate, a median of 1200 for the shipped catalogue
+(see <a href="../input.html#the-catalogue">Inputs</a>). A single model is small
+(variables are <code>O(jobs × M × window)</code>), but a candidate the solver cannot settle
+can take its whole cap. The 0.25 ms TTI multiplies the hyperperiod and every
+job's window by four compared with a 1 ms grid; that is the correct grid,
+since <code>B^max</code> is a per-TTI capacity. Gurobi is pinned to one thread so that one
+process per core does not oversubscribe the machine.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="planning.html">&larr; Configuration planning</a><a class="next" href="../baselines/index.html">Baselines &rarr;</a></div>
+<p class="source">Generated from <code>doc/offline_phase/evaluation.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#build">Build</a></li><li class="l2"><a href="#license">License</a></li><li class="l2"><a href="#usage">Usage</a></li><li class="l2"><a href="#what-it-does">What it does</a></li><li class="l3"><a href="#the-model">The model</a></li><li class="l3"><a href="#solver-settings-and-outcomes">Solver settings and outcomes</a></li><li class="l3"><a href="#two-time-budgets">Two time budgets</a></li><li class="l3"><a href="#bounded-rb_peak-search">Bounded rb_peak search</a></li><li class="l2"><a href="#outputs">Outputs</a></li><li class="l2"><a href="#checking-a-table-independently">Checking a table independently</a></li><li class="l2"><a href="#cost">Cost</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

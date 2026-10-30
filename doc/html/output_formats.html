@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Output formats &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html" class="current">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="output-formats">Output formats<a class="headerlink" href="#output-formats" title="Link to this section">#</a></h1>
+<p>The files a run of <code>scripts/run_paper_experiment.sh</code> leaves under
+<code>output/sweep/rb&lt;B&gt;/reports/&lt;method&gt;/&lt;flowset&gt;/</code>, field by field. The verdict CSV derived from them is described in
+<a href="analysis/index.html#the-verdict-table">Analysis</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">File</th>
+<th align="left">Written by</th>
+<th align="left">Count per flowset</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>planner_report.json</code></td>
+<td align="left">planner</td>
+<td align="left">one (ILP only)</td>
+</tr>
+<tr>
+<td align="left"><code>offline_phase_report.json</code></td>
+<td align="left"><code>siren</code></td>
+<td align="left">one (ILP only)</td>
+</tr>
+<tr>
+<td align="left"><code>combo_&lt;index&gt;.json</code></td>
+<td align="left"><code>siren</code></td>
+<td align="left">one per schedulable candidate (none if no candidate is schedulable)</td>
+</tr>
+<tr>
+<td align="left"><code>combo_0000.json</code></td>
+<td align="left">each baseline</td>
+<td align="left">exactly one, a schedule or an infeasibility verdict</td>
+</tr>
+</tbody>
+</table>
+</div><p><strong>Units.</strong> Fields ending in <code>_tti</code> are integer TTIs, the values every
+consumer should compute with. Fields ending in <code>_ms</code> (and the bare <code>period</code>,
+<code>deadline</code>, <code>c</code>) are milliseconds; in ILP tables they are <code>*_tti × tti_ms</code> and
+may be fractional, in baseline tables they are integers.</p>
+<h2 id="planner_reportjson"><code>planner_report.json</code><a class="headerlink" href="#planner_reportjson" title="Link to this section">#</a></h2>
+<p>Each flow's Pareto set of configurations. Specified in
+<a href="offline_phase/planning.html#output-planner_reportjson">Configuration planning</a>.</p>
+<h2 id="offline_phase_reportjson"><code>offline_phase_report.json</code><a class="headerlink" href="#offline_phase_reportjson" title="Link to this section">#</a></h2>
+<p>The ILP's verdict over a flowset's candidate sweep, written by <code>siren</code>.</p>
+<pre><code class="language-jsonc">{
+  &quot;config&quot;: { &quot;solver&quot;: &quot;gurobi 13.0.1&quot;,   // the Gurobi library's version
+              &quot;n_rb&quot;: 135, &quot;m_harq&quot;: 3, &quot;objective&quot;: &quot;rb_peak&quot;, &quot;rb_peak_search&quot;: &quot;bounded&quot;,
+              &quot;tti_ms&quot;: 0.25, &quot;t_up_ms&quot;: 4.0, &quot;timeout_s&quot;: 0.0, &quot;candidate_timeout_s&quot;: 60.0,
+              &quot;stop_at_first&quot;: false },   // true with --stop-at-first
+  &quot;num_combinations_total&quot;: 945,      // candidates = product of the Pareto-set sizes
+  &quot;num_combinations_tested&quot;: 945,     // how far the sweep got
+  &quot;num_schedulable&quot;: 37,
+  &quot;num_combinations_timed_out&quot;: 2,    // tested but undecided (hit a budget)
+  &quot;timed_out_combos&quot;: [ 412, 803 ],   // their combo indices
+  &quot;num_combinations_errored&quot;: 0,      // tested but undecided (solver error, see the log)
+  &quot;errored_combos&quot;: [],               // their combo indices
+  &quot;timed_out&quot;: false,                 // true only if the whole-sweep budget ran out
+  &quot;infeasible_flows&quot;: [],             // flows with an empty Pareto set
+  &quot;schedulable&quot;: [ { ... } ],         // one entry per schedulable candidate
+  &quot;rb_peak_search&quot;: { ... }           // only with objective rb_peak, search bounded
+}
+</code></pre>
+<p>Each <code>schedulable[]</code> entry:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>flows</code></td>
+<td align="left">the candidate's resolved task set, one entry per flow (same fields as in a dispatch table, below)</td>
+</tr>
+<tr>
+<td align="left"><code>schedulable</code></td>
+<td align="left">always <code>true</code></td>
+</tr>
+<tr>
+<td align="left"><code>hyperperiod_tti</code>, <code>hyperperiod_ms</code></td>
+<td align="left"><code>lcm(T_i)</code></td>
+</tr>
+<tr>
+<td align="left"><code>num_jobs</code>, <code>num_variables</code>, <code>num_constraints</code></td>
+<td align="left">size of the ILP</td>
+</tr>
+<tr>
+<td align="left"><code>solve_time_ms</code></td>
+<td align="left">Gurobi's time for this candidate (the pass-1 solve under bounded <code>rb_peak</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>schedule_file</code></td>
+<td align="left">path of its <code>combo_&lt;index&gt;.json</code> (absent with <code>--no-schedules</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>harq_used</code></td>
+<td align="left">objective <code>harq</code> only</td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak_used</code></td>
+<td align="left">objective <code>rb_peak</code>: the minimum peak RB usage</td>
+</tr>
+<tr>
+<td align="left"><code>mean_rb</code></td>
+<td align="left">bounded <code>rb_peak</code> only: <code>Σ N_i B_i C_i / T_i</code>, the lower bound used to order and prune</td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak_solve_time_ms</code></td>
+<td align="left">bounded <code>rb_peak</code>: time of the pass-2 solve</td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak_timed_out</code></td>
+<td align="left">bounded <code>rb_peak</code>: pass 2 ran out of its cap for this candidate</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>rb_peak_search</code> (bounded search only):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>mode</code></td>
+<td align="left"><code>bounded</code></td>
+</tr>
+<tr>
+<td align="left"><code>num_candidates</code></td>
+<td align="left">schedulable candidates entering pass 2</td>
+</tr>
+<tr>
+<td align="left"><code>num_solved</code>, <code>num_pruned</code>, <code>num_timed_out</code>, <code>num_errors</code></td>
+<td align="left">re-solved for the peak; skipped by the bound; capped; ended in a solver error (the entry then has <code>rb_peak_error</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>budget_exhausted</code></td>
+<td align="left">the sweep budget ran out during pass 1 or 2</td>
+</tr>
+<tr>
+<td align="left"><code>best_rb_peak</code>, <code>best_combo_index</code></td>
+<td align="left">the smallest peak found and its candidate (<code>null</code> if none)</td>
+</tr>
+<tr>
+<td align="left"><code>optimal_over_decided</code></td>
+<td align="left"><code>true</code> when no pass-2 solve timed out or failed and the budget held: the best peak is optimal over the candidates decided</td>
+</tr>
+</tbody>
+</table>
+</div><p>When a flow has an empty Pareto set, the report has <code>infeasible_flows</code> set,
+all counts <code>0</code>, no <code>schedulable</code> entries, and its <code>config</code> lacks
+<code>rb_peak_search</code>.</p>
+<p>How the analysis turns this into one verdict: <code>ko_infeasible</code> if
+<code>infeasible_flows</code> is non-empty; else <code>ok</code> if any candidate is schedulable;
+else <code>timeout</code> (undecided) if the sweep timed out or any candidate timed out
+or ended in a solver error; else <code>ko_unschedulable</code>.</p>
+<h2 id="dispatch-table-combo_json">Dispatch table (<code>combo_*.json</code>)<a class="headerlink" href="#dispatch-table-combo_json" title="Link to this section">#</a></h2>
+<p>The schedule of one hyperperiod, in the same format for every method
+(illustrative values, one flow and one TB shown):</p>
+<pre><code class="language-jsonc">{
+  &quot;combo_index&quot;: 12,
+  &quot;config&quot;: { &quot;n_rb&quot;: 135, &quot;m_harq&quot;: 3, &quot;objective&quot;: &quot;must&quot;, &quot;tti_ms&quot;: 0.25,
+              &quot;t_up_ms&quot;: 4.0, &quot;t_up_tti&quot;: 16,
+              &quot;exec_time_mode&quot;: &quot;wcet&quot;, &quot;exec_sample_seed&quot;: 42 },
+  &quot;hyperperiod_tti&quot;: 480,
+  &quot;hyperperiod_ms&quot;: 120,
+  &quot;harq_used&quot;: 3,
+  &quot;flows&quot;: [
+    { &quot;app&quot;: &quot;ProcessControl_T60&quot;, &quot;num_segments&quot;: 3, &quot;tbs&quot;: 129, &quot;m&quot;: 0,
+      &quot;a&quot;: 3, &quot;b&quot;: 29, &quot;c&quot;: 3.0, &quot;c_tti&quot;: 12,
+      &quot;period&quot;: 60, &quot;period_tti&quot;: 240, &quot;deadline&quot;: 30, &quot;deadline_tti&quot;: 120 }
+  ],
+  &quot;dispatch_table&quot;: [
+    { &quot;app&quot;: &quot;ProcessControl_T60&quot;, &quot;subtask&quot;: 0, &quot;machine&quot;: 1, &quot;b&quot;: 29,
+      &quot;release_tti&quot;: 0, &quot;start_tti&quot;: 0, &quot;end_tti&quot;: 12, &quot;deadline_tti&quot;: 120,
+      &quot;release_ms&quot;: 0, &quot;start_ms&quot;: 0, &quot;end_ms&quot;: 3, &quot;deadline_ms&quot;: 30 }
+  ]
+}
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>combo_index</code></td>
+<td align="left">ILP: the candidate's 1-based position in the enumeration. Baselines: the number in the flowset's file name</td>
+</tr>
+<tr>
+<td align="left"><code>config.n_rb</code>, <code>config.m_harq</code>, <code>config.tti_ms</code></td>
+<td align="left"><code>B^max</code>, <code>M</code>, TTI</td>
+</tr>
+<tr>
+<td align="left"><code>config.t_up_ms</code>, <code>config.t_up_tti</code></td>
+<td align="left">the upper-layer delay <code>t_up</code>: a packet is delivered this long after its last TB ends</td>
+</tr>
+<tr>
+<td align="left"><code>config.objective</code></td>
+<td align="left">the ILP objective, or the baseline's name: <code>round_robin</code>, <code>proportional_fair</code>, <code>qos_pf</code>, <code>must</code></td>
+</tr>
+<tr>
+<td align="left"><code>config.exec_time_mode</code>, <code>config.exec_sample_seed</code></td>
+<td align="left">baselines only: the execution-time model of the run</td>
+</tr>
+<tr>
+<td align="left"><code>hyperperiod_tti</code>, <code>hyperperiod_ms</code></td>
+<td align="left">the scheduled horizon</td>
+</tr>
+<tr>
+<td align="left"><code>harq_used</code></td>
+<td align="left">baselines: number of distinct processes in the table. ILP: set only with objective <code>harq</code>, otherwise <code>null</code></td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak_used</code></td>
+<td align="left">ILP only: set with objective <code>rb_peak</code>, otherwise <code>null</code></td>
+</tr>
+<tr>
+<td align="left"><code>flows[]</code></td>
+<td align="left">per flow: segments, TB size, MCS <code>m</code>, attempts <code>a</code>, RBs per TB <code>b</code>, WCTT <code>c = A t_tx</code> (ms) and <code>c_tti</code>, without <code>t_up</code>, period and deadline in ms and TTIs</td>
+</tr>
+<tr>
+<td align="left"><code>dispatch_table[]</code></td>
+<td align="left">one entry per transport block placed</td>
+</tr>
+<tr>
+<td align="left"><code>.subtask</code></td>
+<td align="left">segment index within its packet (<code>0 … N-1</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>.machine</code></td>
+<td align="left">HARQ process (<code>0 … M-1</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>.b</code></td>
+<td align="left">RBs held for the whole <code>[start, end)</code>; <code>end</code> is when the TB releases its process and RBs</td>
+</tr>
+<tr>
+<td align="left"><code>.release_*</code>, <code>.start_*</code>, <code>.end_*</code>, <code>.deadline_*</code></td>
+<td align="left">packet release, TB start, TB end, packet's absolute deadline</td>
+</tr>
+</tbody>
+</table>
+</div><p>A packet's jobs share <code>app</code>, <code>release_tti</code> and <code>deadline_tti</code>; the packet is
+late when the latest <code>end_tti</code> among them plus <code>config.t_up_tti</code> exceeds
+<code>deadline_tti</code>. In ILP tables
+that never happens; in baseline tables it is how deadline misses show up (except
+for <code>must</code>, which drops instead; see below).</p>
+<p><strong>Infeasible verdict (baselines).</strong> When no configuration of some flow fits the
+cell, a baseline writes the same structure with <code>"schedulable": false</code>,
+<code>"infeasible_flows": [ ... ]</code>, <code>"infeasible_reason": "..."</code>, empty <code>flows</code> and
+<code>dispatch_table</code>, <code>hyperperiod_*</code> and <code>harq_used</code> set to <code>0</code>, and a <code>config</code>
+without the <code>exec_*</code> fields.</p>
+<p><strong>Method-specific additions:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Method</th>
+<th align="left">Fields</th>
+<th align="left">Page</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>must</code></td>
+<td align="left"><code>dropped_packets</code>, <code>n_dropped_packets</code>, <code>must.plr_estimate</code>, <code>must.n_packets</code></td>
+<td align="left"><a href="baselines/must.html">MUST</a></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="logs">Logs<a class="headerlink" href="#logs" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">File</th>
+<th align="left">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>output/sweep/rb&lt;B&gt;/logs/&lt;method&gt;/&lt;flowset&gt;.log</code></td>
+<td align="left">a header (<code>=== &lt;flowset&gt; / &lt;method&gt; ===</code>, <code>Host:</code> the machine, <code>Output:</code> the report folder), then everything the method printed. For the ILP: the planner's summary, then one line per candidate (<code>[k/total] app(N=..,C=..tti,b=..) -&gt; SCHEDULABLE (… ms)</code> / <code>not schedulable</code> / <code>timed out, skipped</code> / <code>solver error</code> / <code>infeasible (window)</code> / <code>infeasible (D &gt; T)</code>), then, under bounded <code>rb_peak</code>, one line per pass-2 solve. For QoS-PF: the 5QI, priority and GBR of every flow</td>
+</tr>
+<tr>
+<td align="left"><code>output/sweep/rb&lt;B&gt;/.parallel/status/&lt;flowset&gt;</code></td>
+<td align="left"><code>ok</code> once every method of the pair ended with status 0, otherwise <code>fail &lt;methods&gt;</code></td>
+</tr>
+</tbody>
+</table>
+</div><p><code>analysis/plot_paper.py --derive</code> parses the ILP logs for per-candidate solve
+times; keep their format if you change the ILP's progress output.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="baselines/must.html">&larr; MUST (must)</a><a class="next" href="analysis/index.html">Analysis &rarr;</a></div>
+<p class="source">Generated from <code>doc/output_formats.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#planner_reportjson">planner_report.json</a></li><li class="l2"><a href="#offline_phase_reportjson">offline_phase_report.json</a></li><li class="l2"><a href="#dispatch-table-combo_json">Dispatch table (combo_*.json)</a></li><li class="l2"><a href="#logs">Logs</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

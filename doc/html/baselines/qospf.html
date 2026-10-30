@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QoS-PF (qospf) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="index.html">Baselines</a><ul><li><a href="rr.html">Round-robin (rr)</a></li><li><a href="pf.html">Proportional fair (pf)</a></li><li><a href="qospf.html" class="current">QoS-PF (qospf)</a></li><li><a href="must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="qos-pf-qospf">QoS-PF (<code>qospf</code>)<a class="headerlink" href="#qos-pf-qospf" title="Link to this section">#</a></h1>
+<p>QoS-aware proportional fairness, after M. Seliem, U. Roedig, C. Sreenan and
+D. Pesch, <em>"QoS-Aware Proportional Fairness Scheduling for Multi-Flow 5G UEs:
+A Smart Factory Perspective"</em>, ACM MSWiM 2025, adapted to this framework's job
+model.</p>
+<p>Source: <code>baseline_algorithms/qospf/</code> (<code>main.cpp</code>, <code>qospf.cpp</code>) and the 3GPP
+5QI table in <code>baseline_algorithms/common/qos_data.h</code>. Shared behaviour is
+described in <a href="index.html">Baselines</a>.</p>
+<h2 id="per-flow-context">Per-flow context<a class="headerlink" href="#per-flow-context" title="Link to this section">#</a></h2>
+<p>Computed once, before simulating:</p>
+<ul>
+<li><strong>Configuration</strong>: the shared selection rule (<a href="index.html#configuration-selection">Baselines</a>).</li>
+<li><strong>5QI and priority</strong>: the flow's <code>5qi</code> from the catalogue, or, if absent, one
+  inferred by matching <code>deadline</code> and <code>error</code> against TS 23.501
+  Table 5.7.4-1. Its <em>default priority level</em> is normalised over the flowset to
+  <code>P_i</code> in <code>[0, 1]</code>, the most important (lowest level) flow getting 1. If every
+  flow has the same level, all get 1.</li>
+<li><strong>GBR target</strong>: <code>GBR_i = S_i × 8 / T_i</code> bits/ms, the rate that delivers one
+  packet per period.</li>
+</ul>
+<p>The log prints, per flow, the 5QI (<code>declared</code> or <code>inferred</code>), the priority
+level and the GBR.</p>
+<h2 id="policy">Policy<a class="headerlink" href="#policy" title="Link to this section">#</a></h2>
+<p>At every decision instant (a TTI with a release or a free HARQ process), as in
+the paper's per-TTI algorithm, every ready job is ranked once by</p>
+<pre><code class="language-text">M_i(t) = U_i(t) / R_i(t)
+U_i(t) = ALPHA × D_i(t) + BETA × G_i(t) + GAMMA × P_i
+
+D_i(t) = 1 / max(TTI, absolute deadline - t_up - t)   delay urgency
+G_i(t) = max(0, 1 - R_i(t) / GBR_i)               GBR deficit
+P_i                                               normalised 5QI priority
+R_i(t)                                            the flow's average throughput, bits/ms
+</code></pre>
+<p>and jobs are then started in that order, each on the lowest-index free
+process if its <code>B</code> fits in the free RBs (otherwise the next job is tried),
+until no process is free. The <code>D</code> term is floored at one TTI (the smallest
+actionable remaining time), which keeps it within about an order of magnitude
+of <code>G</code> and <code>P</code> (both in <code>[0, 1]</code>) so the weights mean what they say. The
+remaining time is counted to the deadline less the upper-layer delay <code>t_up</code>,
+the time the TB itself has: the packet is delivered only <code>t_up</code> after its last
+TB ends. Ties go to the earliest absolute deadline, then the application name.</p>
+<p><code>R_i</code> is an exponential moving average with factor <code>PF_EMA_LAMBDA</code>, the weight
+of the newest sample, updated after each TTI as the authors' implementation
+updates it:</p>
+<ul>
+<li>a flow with data queued in the TTI takes the sample <code>bits_i / TTI</code>, the
+  payload of the jobs it started there (0 if none);</li>
+<li>over the following TTIs, a flow still holding queued data takes zero samples,
+  and a flow with nothing queued keeps its average.</li>
+</ul>
+<p><code>R_i</code> starts at <code>1e-6</code>, so a flow never served has a very large metric.</p>
+<h2 id="correspondence-with-the-paper-and-its-code">Correspondence with the paper and its code<a class="headerlink" href="#correspondence-with-the-paper-and-its-code" title="Link to this section">#</a></h2>
+<p>The paper (Sec. III-C) defines the metric and the per-TTI algorithm: compute
+<code>M_i</code> for every flow, sort, allocate in that order. It names an
+"exponential moving average of the throughput" for <code>R_i</code> but gives neither
+its update rule nor its weight. Its implementation (footnote 1: pull request 1
+of <code>MohamedSeliem/Simu5G</code>, at the cited commit <code>6e0daf7f</code>) is Simu5G's PF
+scheduler with its score multiplied by a fixed QoS weight: no <code>ALPHA</code>, <code>BETA</code>,
+<code>GAMMA</code>, no delay urgency or GBR deficit. That weight starts with the factor
+<code>(10 − 5QI + 1)</code>, negative for every 5QI of the catalogue (82 to 88), so it
+cannot be followed as written. This scheduler therefore keeps the paper's
+metric and per-TTI ranking, and takes from the code what the paper leaves
+open: when and for which flows <code>R_i</code> is updated, and its weight (Simu5G's
+<code>pfAlpha</code>, 0.95, which the released configurations do not override).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Paper / code</th>
+<th align="left">Here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>M_i = U_i / R_i</code>, <code>U_i = α D_i + β G_i + γ P_i</code> (Eqs. 1, 2)</td>
+<td align="left">the same, with one <code>α, β, γ</code> for every flow, as in the paper's evaluation</td>
+</tr>
+<tr>
+<td align="left"><code>D_i</code>: inverse of the remaining time to the deadline</td>
+<td align="left">the same, floored at one TTI</td>
+</tr>
+<tr>
+<td align="left"><code>G_i</code>: GBR deficit</td>
+<td align="left"><code>max(0, 1 − R_i / GBR_i)</code>, <code>GBR_i</code> the rate of one packet per period</td>
+</tr>
+<tr>
+<td align="left"><code>P_i</code>: priority from the 5QI, normalised</td>
+<td align="left">the 5QI's default priority level, normalised over the flowset</td>
+</tr>
+<tr>
+<td align="left">each TTI: compute <code>M_i</code>, sort, allocate PRBs</td>
+<td align="left">each decision instant: rank the ready jobs once, start them in that order</td>
+</tr>
+<tr>
+<td align="left"><code>R_i</code> (code): after the TTI, bytes granted, flows with queued data only, weight <code>pfAlpha = 0.95</code></td>
+<td align="left">the same, in bits per ms</td>
+</tr>
+<tr>
+<td align="left">PRBs per TTI to a flow's buffer</td>
+<td align="left">the framework's jobs: <code>B</code> RBs on one HARQ process for <code>C</code></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Link to this section">#</a></h2>
+<p>All four are <strong>required</strong>; the binary stops if one is missing.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left"><code>parameters.sh</code></th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>ALPHA</code></td>
+<td align="left"><code>0.4</code></td>
+<td align="left">weight of delay urgency</td>
+</tr>
+<tr>
+<td align="left"><code>BETA</code></td>
+<td align="left"><code>0.3</code></td>
+<td align="left">weight of GBR deficit</td>
+</tr>
+<tr>
+<td align="left"><code>GAMMA</code></td>
+<td align="left"><code>0.3</code></td>
+<td align="left">weight of 5QI priority</td>
+</tr>
+<tr>
+<td align="left"><code>PF_EMA_LAMBDA</code></td>
+<td align="left"><code>0.95</code></td>
+<td align="left">weight of the newest sample in the throughput average, in <code>(0, 1]</code> (the authors' Simu5G default)</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>0.4 / 0.3 / 0.3</code> is the paper's "Balanced (Default)" setting; it also
+publishes Delay-Tuned <code>0.7 / 0.2 / 0.1</code> and Fairness-Tuned <code>0.2 / 0.2 / 0.6</code>:</p>
+<pre><code class="language-bash">ALPHA=0.7 BETA=0.2 GAMMA=0.1 ./scripts/run_paper_experiment.sh
+</code></pre>
+<h2 id="specifics">Specifics<a class="headerlink" href="#specifics" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>config.objective</code></td>
+<td align="left"><code>qos_pf</code></td>
+</tr>
+<tr>
+<td align="left">Default output (no 3rd argument)</td>
+<td align="left">stdout</td>
+</tr>
+<tr>
+<td align="left">Reads <code>SINR_DB</code></td>
+<td align="left">yes</td>
+</tr>
+<tr>
+<td align="left">Extra report fields</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+</div>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="pf.html">&larr; Proportional fair (pf)</a><a class="next" href="must.html">MUST (must) &rarr;</a></div>
+<p class="source">Generated from <code>doc/baselines/qospf.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#per-flow-context">Per-flow context</a></li><li class="l2"><a href="#policy">Policy</a></li><li class="l2"><a href="#correspondence-with-the-paper-and-its-code">Correspondence with the paper and its code</a></li><li class="l2"><a href="#parameters">Parameters</a></li><li class="l2"><a href="#specifics">Specifics</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

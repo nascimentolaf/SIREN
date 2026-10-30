@@ -1,68 +1,55 @@
-# Prerequisites
-*.d
+# Gurobi license files hold private keys: never commit one
+gurobi.lic
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-*.so.*
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
-*.exe
-*.out
-*.app
-
-# Build directories
+# Build outputs (scripts/install.sh, the Makefiles)
 build/
-Build/
-build-*/
-
-# CMake generated files
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
-install_manifest.txt
 compile_commands.json
+*.o
+*.d
+*.so
+*.a
+/offline_phase/generate_flowset/generate_flowset
+/offline_phase/planning/planner
+/offline_phase/siren/siren
+/offline_phase/siren/schedules/
+/baseline_algorithms/must/must
+/baseline_algorithms/pf/pf
+/baseline_algorithms/qospf/qospf
+/baseline_algorithms/rr/rr
+/common/test_urllc_config
 
-# Temporary files
-*.tmp
+# Run outputs: everything under output/ but the flowsets
+# (sweep/, rq4_siren/, paper_run/, and any other run tree)
+/output/*
+!/output/flowsets/
+
+# Analysis outputs
+/analysis/csv/
+/analysis/figures/
+/analysis/partial/
+
+# Python
+__pycache__/
+*.pyc
+
+# LaTeX auxiliary files
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
 *.log
-*.bak
+*.out
+*.synctex.gz
+*.toc
+*.nav
+*.snm
+*.vrb
+
+# Editors
 *.swp
-
-# vcpkg
-vcpkg_installed/
-
-# debug information files
-*.dwo
-
-# test output & cache
-Testing/
-.cache/
+*~
+.vscode/

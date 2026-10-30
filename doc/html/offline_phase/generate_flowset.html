@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Flowset generation &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="generate_flowset.html" class="current">Flowset generation</a></li><li><a href="planning.html">Configuration planning</a></li><li><a href="evaluation.html">ILP evaluation (siren)</a></li><li><a href="../baselines/index.html">Baselines</a><ul><li><a href="../baselines/rr.html">Round-robin (rr)</a></li><li><a href="../baselines/pf.html">Proportional fair (pf)</a></li><li><a href="../baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="../baselines/must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="flowset-generation">Flowset generation<a class="headerlink" href="#flowset-generation" title="Link to this section">#</a></h1>
+<p><code>offline_phase/generate_flowset/</code> draws <strong>flowsets</strong> (sets of distinct
+applications) from the application catalogue. Every method is then run on the
+same flowsets, so they are generated once and reused; the
+1000 used by the paper are committed in <code>output/flowsets/</code>.</p>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">cd offline_phase/generate_flowset
+make                                                   # CMake build -&gt; ./generate_flowset
+FLOWSET_SEED=20260922 ./generate_flowset ../../input/app_database.json 4 1000 /tmp/flowsets
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Argument</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>&lt;apps.json&gt;</code></td>
+<td align="left">the application catalogue (a JSON object; see <a href="../input.html#application-catalogue-app_databasejson">Inputs</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>&lt;apps_per_set&gt;</code></td>
+<td align="left">applications per flowset, <code>&gt; 0</code> and at most the catalogue size</td>
+</tr>
+<tr>
+<td align="left"><code>&lt;number_of_sets&gt;</code></td>
+<td align="left">flowsets to write, <code>&gt; 0</code></td>
+</tr>
+<tr>
+<td align="left"><code>[output_dir]</code></td>
+<td align="left">where to write them, created if missing. Default: <code>../../output/flowsets</code>, relative to the current directory (see <a href="#where-it-writes">below</a>)</td>
+</tr>
+</tbody>
+</table>
+</div><div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Environment</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>FLOWSET_SEED</code></td>
+<td align="left">seed of the shuffle. Unset or empty: seeded from <code>std::random_device</code>, and the draw is not reproducible</td>
+</tr>
+</tbody>
+</table>
+</div><p>It exits 1 on a bad argument, an unreadable catalogue, more sets requested
+than combinations exist, an output directory that cannot be created, or any
+flowset that could not be written; 0 when all were written.</p>
+<h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Link to this section">#</a></h2>
+<ol>
+<li>Lists the catalogue's application names. The JSON library keeps object keys
+   in <strong>alphabetical</strong> order, so this order does not depend on how the file is
+   laid out.</li>
+<li>Enumerates every combination of <code>apps_per_set</code> distinct applications
+   (<code>C(n, k)</code> of them) in lexicographic order of those indices.</li>
+<li><strong>Refuses</strong> (exit 1) if more sets are requested than combinations exist,
+   rather than silently writing fewer.</li>
+<li>Shuffles the combinations with <code>std::mt19937</code> seeded from <code>FLOWSET_SEED</code> and
+   writes the first <code>number_of_sets</code>.</li>
+<li>Writes each as <code>flowset_0001.json</code>, <code>flowset_0002.json</code>, …: the catalogue
+   entry of each application plus its name under <code>app</code> (a <code>packet_size</code> field
+   is renamed <code>packetsize</code>). Format: <a href="../input.html#flowset-format">Inputs</a>.</li>
+</ol>
+<p>Every flowset is a distinct combination; an application appears at most once
+per flowset.</p>
+<h2 id="where-it-writes">Where it writes<a class="headerlink" href="#where-it-writes" title="Link to this section">#</a></h2>
+<p>To <code>output_dir</code> when given. The paper's experiments
+(<code>scripts/run_paper_experiment.sh</code>) never run the generator: they use the
+committed flowsets of <code>output/flowsets/</code>.</p>
+<p>Without <code>output_dir</code> it writes to <code>../../output/flowsets</code> <strong>relative to the
+current directory</strong>: the repository's <code>output/flowsets/</code> when run from
+<code>offline_phase/generate_flowset/</code>. <strong>Run that way by hand, it overwrites the
+committed flowsets</strong>; pass an <code>output_dir</code>, or restore the committed batch with
+<code>git checkout -- output/flowsets</code>.</p>
+<p>It overwrites <code>flowset_NNNN.json</code> files with the same numbers and leaves
+higher-numbered ones in place. The absolute path written to is printed at the
+end.</p>
+<h2 id="reproducibility">Reproducibility<a class="headerlink" href="#reproducibility" title="Link to this section">#</a></h2>
+<p>The same catalogue, <code>apps_per_set</code>, <code>number_of_sets</code> and <code>FLOWSET_SEED</code> give
+the same flowsets with the same standard library. <code>std::shuffle</code>'s algorithm is
+implementation-defined, so a different C++ standard library (libc++ instead of
+libstdc++) may draw a different batch from the same seed. The committed batch
+was drawn with <code>FLOWSET_SEED=20260922</code>, 4 applications per set, 1000 sets.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="../scripts.html">&larr; Scripts</a><a class="next" href="planning.html">Configuration planning &rarr;</a></div>
+<p class="source">Generated from <code>doc/offline_phase/generate_flowset.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#usage">Usage</a></li><li class="l2"><a href="#what-it-does">What it does</a></li><li class="l2"><a href="#where-it-writes">Where it writes</a></li><li class="l2"><a href="#reproducibility">Reproducibility</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

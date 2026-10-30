@@ -1,0 +1,13 @@
+# Link-level BLER simulation (bler). Python >= 3.10.
+#
+# The code uses the Sionna 1.x API (sionna.phy.*) and SciPy (Jakes fading),
+# so Sionna 0.x does not work. These exact versions were run together on
+# bler_core.py; pip resolves them from scratch (sionna also pulls in
+# sionna-rt, mitsuba and drjit).
+#
+#   python3 -m pip install -r requirements.txt
+sionna==1.2.2
+tensorflow==2.21.0
+numpy==1.26.2
+scipy==1.15.3
+matplotlib==3.10.8

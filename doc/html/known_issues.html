@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Known issues &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html" class="current">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="known-issues">Known issues<a class="headerlink" href="#known-issues" title="Link to this section">#</a></h1>
+<p>What is inconsistent or easy to trip over in the code as shipped. The
+documentation describes the code <strong>as it behaves</strong>; this page lists where that
+differs from what one would expect.</p>
+<h2 id="limitations">Limitations<a class="headerlink" href="#limitations" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Issue</th>
+<th align="left">Where</th>
+<th align="left">Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Every <code>siren</code> process holds one Gurobi license token for its whole run</td>
+<td align="left"><a href="../../scripts/run_paper_experiment.sh"><code>run_paper_experiment.sh</code></a>, <code>siren</code></td>
+<td align="left">with a license limited to <code>W</code> processes at once, the workers of all machines together must stay within <code>W</code>; a <code>siren</code> started beyond it exits with status 1 and its pair is marked <code>fail</code> (rerun to retry)</td>
+</tr>
+<tr>
+<td align="left">The analysis stage needs the default <code>OUTPUT_DIR</code></td>
+<td align="left"><a href="../../scripts/run_paper_experiment.sh"><code>run_paper_experiment.sh</code></a></td>
+<td align="left"><code>plot_paper.py</code> reads <code>output/sweep/</code>; a run in another output tree can run every stage but <code>analysis</code></td>
+</tr>
+<tr>
+<td align="left"><code>sweep_experiment.sh --collect</code> writes into the repository's <code>analysis/csv/</code></td>
+<td align="left"><a href="../../scripts/sweep_experiment.sh"><code>sweep_experiment.sh</code></a></td>
+<td align="left">whatever <code>OUTPUT_DIR</code> says; collect another tree with <code>analysis/collect_verdicts.py</code> directly</td>
+</tr>
+<tr>
+<td align="left">The flowset shuffle uses <code>std::shuffle</code>, whose algorithm is implementation-defined</td>
+<td align="left"><code>generate_flowset/src/main.cpp</code></td>
+<td align="left">the same <code>FLOWSET_SEED</code> can draw a different batch with another C++ standard library</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="code-that-names-programs-not-in-this-repository">Code that names programs not in this repository<a class="headerlink" href="#code-that-names-programs-not-in-this-repository" title="Link to this section">#</a></h2>
+<p>The code was written alongside other tools, which this repository does not
+include. The code that refers to them was left unchanged:</p>
+<ul>
+<li><strong><code>analysis/rq4_hyperperiod.py run --solver</code></strong> defaults to a solver binary
+  that is not shipped: always pass <code>--solver offline_phase/siren/siren</code>,
+  as <code>run_paper_experiment.sh</code> does.</li>
+<li><strong><code>scripts/sweep_experiment.sh</code></strong> without <code>--collect</code> runs a sweep through a
+  script that is not shipped, and fails; only <code>--collect</code> is used.</li>
+<li><strong><code>scripts/parameters.sh</code></strong> defines settings that no shipped script reads
+  (<code>METHOD_VARIANTS</code>, whose default names a baseline that is not shipped;
+  <code>REUSE_FLOWSETS</code>, <code>CLEAN_OUTPUT</code>; the paths of other tools); see
+  <a href="configuration.html#inputs-and-outputs">Configuration</a>.</li>
+<li><strong><code>analysis/collect_verdicts.py --per-config</code></strong> reads the CSV of a
+  per-configuration sweep that is not shipped.</li>
+<li><strong>The analysis code knows the methods <code>edf</code>, <code>5gtps</code> and <code>5gtps_harq</code></strong>
+  (labels, colours, macros). Runs of this repository have no such rows.</li>
+</ul>
+<h2 id="behaviours-to-keep-in-mind-when-reading-results">Behaviours to keep in mind when reading results<a class="headerlink" href="#behaviours-to-keep-in-mind-when-reading-results" title="Link to this section">#</a></h2>
+<p>These are deliberate, but change how a verdict reads.</p>
+<ul>
+<li><strong>Baselines can exceed <code>A^max</code>.</strong> They select from the unscreened
+  configuration set, within <code>A^max</code> whenever a configuration within it fits
+  the cell; where none does they fall back to more attempts, and
+  <code>plot_paper.py</code> reclassifies such runs as <code>ko_amax</code> (the raw CSVs do not).
+  On the shipped catalogue and MCS table no application needs the fallback,
+  at any budget. See <a href="baselines/index.html#configuration-selection">Baselines</a>.</li>
+<li><strong>The ILP's per-candidate cap is wall-clock time.</strong> A candidate near the
+  60 s cap may be decided on one machine and not on another, or under another
+  load. <code>run_paper_experiment.sh</code> pins each worker to its own physical core
+  for this reason. Every ILP log names its machine (<code>Host:</code>), and
+  <code>plot_paper.py --derive</code> carries it into the timing table (<code>host</code>). The
+  baselines are deterministic and do not depend on the machine.</li>
+<li><strong>ILP counts depend on the budgets</strong>: how many tables, how many candidates
+  tested. See <a href="analysis/index.html#things-to-know-before-trusting-a-number">Analysis</a>.</li>
+</ul>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="bler.html">&larr; BLER and MCS tables</a><a class="next" href="about.html">About us &rarr;</a></div>
+<p class="source">Generated from <code>doc/known_issues.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#limitations">Limitations</a></li><li class="l2"><a href="#code-that-names-programs-not-in-this-repository">Code that names programs not in this repository</a></li><li class="l2"><a href="#behaviours-to-keep-in-mind-when-reading-results">Behaviours to keep in mind when reading results</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

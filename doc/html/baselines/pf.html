@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proportional fair (pf) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="index.html">Baselines</a><ul><li><a href="rr.html">Round-robin (rr)</a></li><li><a href="pf.html" class="current">Proportional fair (pf)</a></li><li><a href="qospf.html">QoS-PF (qospf)</a></li><li><a href="must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="proportional-fair-pf">Proportional fair (<code>pf</code>)<a class="headerlink" href="#proportional-fair-pf" title="Link to this section">#</a></h1>
+<p>Classic proportional fairness: serve the job whose achievable rate is largest
+relative to its flow's average past rate. No deadline and no RB-cost term
+enter the metric.</p>
+<p>Source: <code>baseline_algorithms/pf/</code> (<code>main.cpp</code>, <code>pf.cpp</code>). Shared behaviour is
+described in <a href="index.html">Baselines</a>.</p>
+<h2 id="policy">Policy<a class="headerlink" href="#policy" title="Link to this section">#</a></h2>
+<p>At every scheduling instant (a TTI with a release or a free HARQ process),
+while a process is free, each flow offers its next ready job if the job's <code>B</code>
+fits in the free RBs; the offers are ranked by</p>
+<pre><code class="language-text">metric_i = r_i / R_i
+r_i      = useful payload bytes of the job / its duration C   (achievable rate, bytes/ms)
+R_i      = the flow's average past rate (bytes/ms), as at the start of the TTI
+</code></pre>
+<p>and the highest metric starts on the lowest-index free process. The offers are
+then taken afresh, so a flow just served offers its next job in the same TTI:
+the scheduler is work-conserving, like the other baselines. Ties go to flowset
+order, then release order, then segment order. <code>C</code> is the worst case, <code>A</code>
+attempts: under <code>EXEC_TIME_MODE=sampled</code> the process is held for the attempts
+the job really takes, but ranking on those would assume the scheduler knows
+them in advance.</p>
+<p><code>R_i</code> is a single exponential moving average over <strong>TTIs</strong>, as in the
+standard definition <code>R_i(t) = (1 - 1/t_c) R_i(t-1) + (1/t_c) r_i(t)</code>:</p>
+<ul>
+<li>after each TTI the flow takes the sample <code>r_i(t)</code>, the summed rate of the
+  jobs it started in the TTI (0 if none), with weight <code>PF_ALPHA</code> (<code>= 1/t_c</code>);</li>
+<li>every TTI the flow is <strong>not</strong> served it takes a zero sample, so its average
+  decays by <code>(1 - PF_ALPHA)</code> per TTI, compounded over the gap between two
+  scheduling events. That decay is what lets an unserved flow climb the
+  ranking.</li>
+</ul>
+<p>All flows start at <code>R_i = PF_INITIAL_THROUGHPUT</code>.</p>
+<h2 id="parameters">Parameters<a class="headerlink" href="#parameters" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left"><code>parameters.sh</code></th>
+<th align="left">Binary default</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>PF_ALPHA</code></td>
+<td align="left"><code>0.01</code></td>
+<td align="left"><code>0.1</code></td>
+<td align="left"><code>1/t_c</code>: weight of the newest sample. Memory = <code>1/PF_ALPHA</code> TTIs; 100 TTIs = 25 ms at the default</td>
+</tr>
+<tr>
+<td align="left"><code>PF_INITIAL_THROUGHPUT</code></td>
+<td align="left"><code>1.0</code></td>
+<td align="left"><code>1.0</code></td>
+<td align="left">initial <code>R_i</code>, bytes/ms; must be <code>&gt; 0</code></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="specifics">Specifics<a class="headerlink" href="#specifics" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>config.objective</code></td>
+<td align="left"><code>proportional_fair</code></td>
+</tr>
+<tr>
+<td align="left">Default output (no 3rd argument)</td>
+<td align="left"><code>./&lt;flowset stem&gt;_pf.json</code></td>
+</tr>
+<tr>
+<td align="left">Reads <code>SINR_DB</code></td>
+<td align="left">yes</td>
+</tr>
+<tr>
+<td align="left">Extra report fields</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+</div><p>PF is the only baseline whose ordering depends on <em>achieved</em> service. Under
+<code>EXEC_TIME_MODE=sampled</code> an early completion changes the averages and so every
+later decision, which is why PF is the method most affected by early HARQ
+termination (see <a href="index.html#execution-time-model">Baselines</a>).</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="rr.html">&larr; Round-robin (rr)</a><a class="next" href="qospf.html">QoS-PF (qospf) &rarr;</a></div>
+<p class="source">Generated from <code>doc/baselines/pf.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#policy">Policy</a></li><li class="l2"><a href="#parameters">Parameters</a></li><li class="l2"><a href="#specifics">Specifics</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

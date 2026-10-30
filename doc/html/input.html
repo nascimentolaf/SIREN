@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inputs &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html" class="current">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Link to this section">#</a></h1>
+<p>What is in <code>input/</code>, the formats the pipeline reads, and how the application
+catalogue was built.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">File</th>
+<th align="left">Status</th>
+<th align="left">Read by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>app_database.json</code></td>
+<td align="left">the application catalogue, 30 applications</td>
+<td align="left"><code>generate_flowset</code>, <code>scripts/check_catalogue.py</code>, <code>analysis/</code></td>
+</tr>
+<tr>
+<td align="left"><code>mcs_configurations.json</code></td>
+<td align="left">the link-layer table</td>
+<td align="left">planner, every baseline, <code>analysis/</code></td>
+</tr>
+</tbody>
+</table>
+</div><p>The flowsets themselves live in <code>output/flowsets/</code> (the only part of
+<code>output/</code> tracked in git); see
+<a href="offline_phase/generate_flowset.html">Flowset generation</a>.</p>
+<h2 id="application-catalogue-app_databasejson">Application catalogue (<code>app_database.json</code>)<a class="headerlink" href="#application-catalogue-app_databasejson" title="Link to this section">#</a></h2>
+<p>A JSON object keyed by application name. Each application is one periodic
+downlink flow:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Type</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>type</code></td>
+<td align="left">string</td>
+<td align="left">traffic class; <code>"RT"</code> throughout the catalogue</td>
+</tr>
+<tr>
+<td align="left"><code>packetsize</code></td>
+<td align="left">integer</td>
+<td align="left">payload per packet, bytes (<code>S_i</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>error</code></td>
+<td align="left">number</td>
+<td align="left">target residual packet error rate after HARQ (<code>E_i</code>), e.g. <code>1e-05</code></td>
+</tr>
+<tr>
+<td align="left"><code>period</code></td>
+<td align="left">number</td>
+<td align="left">packet period, ms (<code>T_i</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>deadline</code></td>
+<td align="left">number</td>
+<td align="left">relative deadline, ms (<code>D_i</code>), measured from the packet's release and <strong>including</strong> the upper-layer delay <code>UPPER_LAYER_DELAY</code></td>
+</tr>
+<tr>
+<td align="left"><code>5qi</code></td>
+<td align="left">integer</td>
+<td align="left">optional 3GPP 5QI (TS 23.501 Table 5.7.4-1); used only by QoS-PF (see <a href="#the-5qi-field">below</a>)</td>
+</tr>
+</tbody>
+</table>
+</div><pre><code class="language-json">&quot;ProcessControl_T60&quot;: {
+  &quot;type&quot;: &quot;RT&quot;, &quot;packetsize&quot;: 256, &quot;error&quot;: 1e-05,
+  &quot;period&quot;: 60, &quot;deadline&quot;: 30, &quot;5qi&quot;: 84
+}
+</code></pre>
+<h3 id="the-catalogue">The catalogue<a class="headerlink" href="#the-catalogue" title="Link to this section">#</a></h3>
+<p>Five reliability classes × six deadlines = 30 applications, named
+<code>&lt;Class&gt;_T&lt;period&gt;</code>. Deadlines are 10, 15, 20, 30, 40 and 60 ms. Each period
+is a divisor of 420 ms = 2² · 3 · 5 · 7 between 1.6 and 2.5 times the
+deadline, and the classes cycle through the choices a deadline has, so periods
+rarely divide one another (Goossens and Macq's hyperperiod limitation). Any
+flowset's hyperperiod therefore divides 420 ms = 1680 TTIs. Packet sizes cycle
+over 128/256/512/1024 B, offset per class so that each deadline sees several
+sizes. Each cell is period (ms) / packet size (B):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Application</th>
+<th align="right"><code>E_i</code></th>
+<th align="right">5QI</th>
+<th align="right">D = 10</th>
+<th align="right">D = 15</th>
+<th align="right">D = 20</th>
+<th align="right">D = 30</th>
+<th align="right">D = 40</th>
+<th align="right">D = 60</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>Monitoring_T&lt;period&gt;</code></td>
+<td align="right">1e-3</td>
+<td align="right">88</td>
+<td align="right">20 / 128</td>
+<td align="right">28 / 256</td>
+<td align="right">42 / 512</td>
+<td align="right">60 / 1024</td>
+<td align="right">70 / 128</td>
+<td align="right">105 / 256</td>
+</tr>
+<tr>
+<td align="left"><code>DiscreteAutomation_T&lt;period&gt;</code></td>
+<td align="right">1e-4</td>
+<td align="right">82</td>
+<td align="right">21 / 256</td>
+<td align="right">30 / 512</td>
+<td align="right">35 / 1024</td>
+<td align="right">70 / 128</td>
+<td align="right">84 / 256</td>
+<td align="right">140 / 512</td>
+</tr>
+<tr>
+<td align="left"><code>ProcessControl_T&lt;period&gt;</code></td>
+<td align="right">1e-5</td>
+<td align="right">84</td>
+<td align="right">20 / 512</td>
+<td align="right">35 / 1024</td>
+<td align="right">42 / 128</td>
+<td align="right">60 / 256</td>
+<td align="right">70 / 512</td>
+<td align="right">105 / 1024</td>
+</tr>
+<tr>
+<td align="left"><code>PrecisionControl_T&lt;period&gt;</code></td>
+<td align="right">1e-6</td>
+<td align="right">85</td>
+<td align="right">21 / 1024</td>
+<td align="right">28 / 128</td>
+<td align="right">35 / 256</td>
+<td align="right">70 / 512</td>
+<td align="right">84 / 1024</td>
+<td align="right">140 / 128</td>
+</tr>
+<tr>
+<td align="left"><code>HighReliability_T&lt;period&gt;</code></td>
+<td align="right">1e-8</td>
+<td align="right">85</td>
+<td align="right">20 / 128</td>
+<td align="right">30 / 256</td>
+<td align="right">42 / 512</td>
+<td align="right">60 / 1024</td>
+<td align="right">70 / 128</td>
+<td align="right">105 / 256</td>
+</tr>
+</tbody>
+</table>
+</div><p>What Section V makes of each class at the default parameters, as printed by
+<code>python3 scripts/check_catalogue.py --table</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Reliability class</th>
+<th align="left"><code>E_i</code></th>
+<th align="right">apps</th>
+<th align="left">Pareto set size</th>
+<th align="left">segments <code>N</code></th>
+<th align="left">attempts <code>A</code></th>
+<th align="left">RBs <code>B</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Monitoring and tracking</td>
+<td align="left">1e-3</td>
+<td align="right">6</td>
+<td align="left">8 to 11</td>
+<td align="left">1 to 18</td>
+<td align="left">2 to 4</td>
+<td align="left">7 to 64</td>
+</tr>
+<tr>
+<td align="left">Discrete automation</td>
+<td align="left">1e-4</td>
+<td align="right">6</td>
+<td align="left">7 to 10</td>
+<td align="left">1 to 18</td>
+<td align="left">2 to 4</td>
+<td align="left">9 to 79</td>
+</tr>
+<tr>
+<td align="left">Motion and process control</td>
+<td align="left">1e-5</td>
+<td align="right">6</td>
+<td align="left">6 to 9</td>
+<td align="left">1 to 18</td>
+<td align="left">2 to 4</td>
+<td align="left">12 to 103</td>
+</tr>
+<tr>
+<td align="left">Precision and safety</td>
+<td align="left">1e-6</td>
+<td align="right">6</td>
+<td align="left">4 to 7</td>
+<td align="left">1 to 9</td>
+<td align="left">3 to 4</td>
+<td align="left">15 to 64</td>
+</tr>
+<tr>
+<td align="left">High reliability</td>
+<td align="left">1e-8</td>
+<td align="right">6</td>
+<td align="left">2 to 3</td>
+<td align="left">1 to 5</td>
+<td align="left">4</td>
+<td align="left">29 to 64</td>
+</tr>
+</tbody>
+</table>
+</div><p>Every application is feasible on its own; the worst-case transmission time of
+any retained configuration is 4 ms (<code>A^max = 4</code>, <code>t_tx = 1 ms</code>), to which the
+upper-layer delay <code>t_up = 4 ms</code> adds towards the deadline (it holds no HARQ
+process or RB).
+A flowset of four draws a median of 1200 and at most 11 000 candidate
+configurations for the ILP. <code>C(30, 4) = 27 405</code>, so the 1000 flowsets are drawn
+without repetition.</p>
+<h3 id="how-it-is-built">How it is built<a class="headerlink" href="#how-it-is-built" title="Link to this section">#</a></h3>
+<ul>
+<li><strong>Five reliability classes</strong> (<code>1e-3</code>, <code>1e-4</code>, <code>1e-5</code>, <code>1e-6</code>, <code>1e-8</code>), the
+  classes of the paper's application table, each anchored on the 5QI row whose
+  service description is closest (88 motion tracking, 82 discrete automation,
+  84 intelligent transport, 85 for the two strictest classes).</li>
+<li><strong>Deadlines 10 to 60 ms.</strong></li>
+<li><strong>Non-harmonic periods.</strong> Each period is a divisor of 420 ms within
+  <code>[1.6 D, 2.5 D]</code>, chosen per class from 20/21, 28/30/35, 35/42, 60/70, 70/84
+  and 105/140 ms (for deadlines 10 to 60 ms) so that no class repeats a
+  period. In the 1000 flowsets, 22% of the period pairs with distinct periods
+  are harmonic (27% of all pairs, counting the 7% whose two periods are
+  equal), and the hyperperiod is at most 420 ms (median 420 ms).</li>
+<li><strong>Feasible alone</strong>: every application has at least one configuration with
+  <code>C + t_up &lt;= D</code>, so an infeasible flowset reflects contention between flows
+  rather than an impossible application.</li>
+</ul>
+<p>A 10 ms deadline leaves a TB 6 ms once <code>t_up</code> is set aside, less than two
+worst-case <code>C</code> of 4 ms (<code>2C &gt; D - t_up</code>) for the five applications with that
+deadline. The catalogue does not require <code>2C &lt;= D</code>, and <code>check_catalogue.py</code>
+reports it as a note, not a failure.</p>
+<h3 id="checking-the-catalogue">Checking the catalogue<a class="headerlink" href="#checking-the-catalogue" title="Link to this section">#</a></h3>
+<p><code>scripts/check_catalogue.py</code> re-runs Section V on the catalogue (in Python,
+with the parameters of <code>scripts/parameters.sh</code>, overrides in the environment
+included) and enforces what the evaluation relies on:</p>
+<ul>
+<li>every application has a non-empty Pareto set (feasible alone);</li>
+<li>every retained configuration has <code>C_i &lt;= D_i</code>;</li>
+<li><code>D_i &lt;= T_i</code> (constrained deadlines);</li>
+<li>every period, deadline and retained <code>C_i</code> is a whole number of
+  milliseconds (the baselines record whole milliseconds; see
+  <a href="architecture.html#time-units">Architecture</a>);</li>
+<li>the periods' hyperperiod is at most 420 ms;</li>
+<li><code>C(apps, apps per set) &gt;=</code> the number of flowsets requested.</li>
+</ul>
+<pre><code class="language-bash">python3 scripts/check_catalogue.py                        # NUMBER_OF_APPSETS sets of APP_PER_SET
+A_MAX=3 python3 scripts/check_catalogue.py                # as a run with A_MAX=3 would see it
+python3 scripts/check_catalogue.py --sets 500 --apps-per-set 5
+python3 scripts/check_catalogue.py --table                # the class table above
+python3 scripts/check_catalogue.py --apps other.json --mcs other_mcs.json
+</code></pre>
+<p>It exits non-zero on any failed invariant. <code>TTI</code>, <code>FEEDBACK_PER_RET</code>,
+<code>UPPER_LAYER_DELAY</code>, <code>A_MAX</code>, <code>RLC_HEADER_BYTES</code> and <code>SINR_DB</code>, and the
+defaults of <code>--apps</code> (<code>APP_DATABASE</code>), <code>--mcs</code> (<code>MCS_CONFIG</code>), <code>--sets</code>
+(<code>NUMBER_OF_APPSETS</code>) and <code>--apps-per-set</code> (<code>APP_PER_SET</code>), come from
+<code>parameters.sh</code>, so the check follows any change there. It computes <code>t_tx</code>
+and <code>C_i</code> exactly as the planner does, and gives the planner's Pareto sets.</p>
+<h3 id="the-5qi-field">The <code>5qi</code> field<a class="headerlink" href="#the-5qi-field" title="Link to this section">#</a></h3>
+<p>Only the QoS-PF baseline uses it, as the source of the priority term of its
+utility: it takes the row's <strong>default priority level</strong> (lower = more important)
+and normalises the levels of the flowset into <code>[0, 1]</code>. The row's delay budget
+and error rate are not used, since the application's own <code>deadline</code> and <code>error</code>
+govern scheduling.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="right">5QI</th>
+<th align="left">3GPP service</th>
+<th align="right">Priority level</th>
+<th align="left">Classes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="right">82</td>
+<td align="left">Discrete Automation</td>
+<td align="right">19</td>
+<td align="left">DiscreteAutomation</td>
+</tr>
+<tr>
+<td align="right">85</td>
+<td align="left">Electricity Distribution (high voltage)</td>
+<td align="right">21</td>
+<td align="left">PrecisionControl, HighReliability</td>
+</tr>
+<tr>
+<td align="right">84</td>
+<td align="left">Intelligent transport systems</td>
+<td align="right">24</td>
+<td align="left">ProcessControl</td>
+</tr>
+<tr>
+<td align="right">88</td>
+<td align="left">Interactive Service (motion tracking)</td>
+<td align="right">25</td>
+<td align="left">Monitoring</td>
+</tr>
+</tbody>
+</table>
+</div><p>When an application omits <code>5qi</code>, QoS-PF infers one by matching <code>deadline</code> and
+<code>error</code> against the 5QI table, preferring rows that satisfy both. Its log says
+which happened for every flow (<code>5QI=84 (declared)</code> or <code>(inferred)</code>).</p>
+<h2 id="mcs-table-mcs_configurationsjson">MCS table (<code>mcs_configurations.json</code>)<a class="headerlink" href="#mcs-table-mcs_configurationsjson" title="Link to this section">#</a></h2>
+<p>The link-layer table: one entry per transport-block size, listing for each
+usable MCS the per-attempt block error rate measured by link simulation and the
+resource blocks one attempt costs. It is produced by
+<code>bler/mcs_configurations/generate_mcs_configurations.py</code> from the
+simulation results in <code>bler/data/</code> (see <a href="bler.html">BLER and MCS tables</a>).</p>
+<pre><code class="language-json">[
+  { &quot;tbs&quot;: 66, &quot;sinr&quot;: 10,
+    &quot;mcs&quot;: [ { &quot;m&quot;: 0, &quot;bler&quot;: 0.01903125, &quot;b&quot;: 15 },
+             { &quot;m&quot;: 1, &quot;bler&quot;: 0.037421875, &quot;b&quot;: 12 } ] },
+  { &quot;tbs&quot;: 261, &quot;sinr&quot;: 10,
+    &quot;mcs&quot;: [ { &quot;m&quot;: 0, &quot;bler&quot;: 0.0021640625, &quot;b&quot;: 58 } ] }
+]
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>tbs</code></td>
+<td align="left">transport block size, <strong>bytes</strong></td>
+</tr>
+<tr>
+<td align="left"><code>sinr</code></td>
+<td align="left">SINR of the simulation, dB (the planner, the baselines and the analysis scripts keep only the tables at <code>SINR_DB</code>; see <a href="configuration.html#radio-and-timing-model">Configuration</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>mcs[].m</code></td>
+<td align="left">MCS index</td>
+</tr>
+<tr>
+<td align="left"><code>mcs[].bler</code></td>
+<td align="left">per-attempt error rate of a whole TB, as simulated: the value Eq. (4) uses</td>
+</tr>
+<tr>
+<td align="left"><code>mcs[].b</code></td>
+<td align="left">resource blocks per attempt</td>
+</tr>
+</tbody>
+</table>
+</div><p>The shipped table has one SINR (10 dB) and four sizes: 66 B (29 MCS rows),
+129 B (29), 261 B (28) and 469 B (25), costing 1 to 103 RBs. The lowest
+per-attempt BLER is 2.16e-3 (261 B, MCS 0), which is what makes an attempt
+count of 1 unreachable for every class. The readers ignore any other field
+of an entry (older tables also carried <code>ni</code> and <code>bler_raw</code>).
+Rows whose BLER is outside <code>(0, 1)</code> are dropped at generation time.</p>
+<p><strong>Retired format.</strong> A table bucketed by decade error targets
+(<code>configurations</code> → <code>error</code> → <code>mkb: [{m, k, b}]</code>, <code>k</code> a precomputed attempt
+count) would force the planner to round its Eq. (3) target to a decade, which
+relaxes reliability targets by 2 to 3× for <code>N = 2</code> and <code>N = 3</code>. The planner and
+the baselines reject that format with a message pointing at the generator.
+<code>bler/mcs_configurations/mcs_configurations.json</code> is a file <strong>in the
+retired format</strong>: same name as the input table, different schema; nothing in
+the pipeline reads it.</p>
+<h2 id="flowset-format">Flowset format<a class="headerlink" href="#flowset-format" title="Link to this section">#</a></h2>
+<p>A flowset is a JSON array of applications: the catalogue entry plus its name
+under <code>app</code>. Keys are sorted alphabetically.</p>
+<pre><code class="language-json">[
+  { &quot;5qi&quot;: 82, &quot;app&quot;: &quot;DiscreteAutomation_T30&quot;, &quot;deadline&quot;: 15,
+    &quot;error&quot;: 0.0001, &quot;packetsize&quot;: 512, &quot;period&quot;: 30, &quot;type&quot;: &quot;RT&quot; },
+  { &quot;5qi&quot;: 85, &quot;app&quot;: &quot;HighReliability_T30&quot;, &quot;deadline&quot;: 15,
+    &quot;error&quot;: 1e-08, &quot;packetsize&quot;: 256, &quot;period&quot;: 30, &quot;type&quot;: &quot;RT&quot; }
+]
+</code></pre>
+<p>The planner reads <code>app</code>, <code>error</code>, <code>period</code>, <code>deadline</code>, <code>packetsize</code> and
+<code>type</code>; the baselines additionally read <code>5qi</code> when present.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="configuration.html">&larr; Configuration</a><a class="next" href="scripts.html">Scripts &rarr;</a></div>
+<p class="source">Generated from <code>doc/input.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#application-catalogue-app_databasejson">Application catalogue (app_database.json)</a></li><li class="l3"><a href="#the-catalogue">The catalogue</a></li><li class="l3"><a href="#how-it-is-built">How it is built</a></li><li class="l3"><a href="#checking-the-catalogue">Checking the catalogue</a></li><li class="l3"><a href="#the-5qi-field">The 5qi field</a></li><li class="l2"><a href="#mcs-table-mcs_configurationsjson">MCS table (mcs_configurations.json)</a></li><li class="l2"><a href="#flowset-format">Flowset format</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

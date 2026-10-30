@@ -1,0 +1,242 @@
+{
+  "Monitoring_T20": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 0.001,
+    "period": 20,
+    "deadline": 10,
+    "5qi": 88
+  },
+  "Monitoring_T28": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 0.001,
+    "period": 28,
+    "deadline": 15,
+    "5qi": 88
+  },
+  "Monitoring_T42": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 0.001,
+    "period": 42,
+    "deadline": 20,
+    "5qi": 88
+  },
+  "Monitoring_T60": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 0.001,
+    "period": 60,
+    "deadline": 30,
+    "5qi": 88
+  },
+  "Monitoring_T70": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 0.001,
+    "period": 70,
+    "deadline": 40,
+    "5qi": 88
+  },
+  "Monitoring_T105": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 0.001,
+    "period": 105,
+    "deadline": 60,
+    "5qi": 88
+  },
+  "DiscreteAutomation_T21": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 0.0001,
+    "period": 21,
+    "deadline": 10,
+    "5qi": 82
+  },
+  "DiscreteAutomation_T30": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 0.0001,
+    "period": 30,
+    "deadline": 15,
+    "5qi": 82
+  },
+  "DiscreteAutomation_T35": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 0.0001,
+    "period": 35,
+    "deadline": 20,
+    "5qi": 82
+  },
+  "DiscreteAutomation_T70": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 0.0001,
+    "period": 70,
+    "deadline": 30,
+    "5qi": 82
+  },
+  "DiscreteAutomation_T84": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 0.0001,
+    "period": 84,
+    "deadline": 40,
+    "5qi": 82
+  },
+  "DiscreteAutomation_T140": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 0.0001,
+    "period": 140,
+    "deadline": 60,
+    "5qi": 82
+  },
+  "ProcessControl_T20": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 1e-05,
+    "period": 20,
+    "deadline": 10,
+    "5qi": 84
+  },
+  "ProcessControl_T35": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 1e-05,
+    "period": 35,
+    "deadline": 15,
+    "5qi": 84
+  },
+  "ProcessControl_T42": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 1e-05,
+    "period": 42,
+    "deadline": 20,
+    "5qi": 84
+  },
+  "ProcessControl_T60": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 1e-05,
+    "period": 60,
+    "deadline": 30,
+    "5qi": 84
+  },
+  "ProcessControl_T70": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 1e-05,
+    "period": 70,
+    "deadline": 40,
+    "5qi": 84
+  },
+  "ProcessControl_T105": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 1e-05,
+    "period": 105,
+    "deadline": 60,
+    "5qi": 84
+  },
+  "PrecisionControl_T21": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 1e-06,
+    "period": 21,
+    "deadline": 10,
+    "5qi": 85
+  },
+  "PrecisionControl_T28": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 1e-06,
+    "period": 28,
+    "deadline": 15,
+    "5qi": 85
+  },
+  "PrecisionControl_T35": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 1e-06,
+    "period": 35,
+    "deadline": 20,
+    "5qi": 85
+  },
+  "PrecisionControl_T70": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 1e-06,
+    "period": 70,
+    "deadline": 30,
+    "5qi": 85
+  },
+  "PrecisionControl_T84": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 1e-06,
+    "period": 84,
+    "deadline": 40,
+    "5qi": 85
+  },
+  "PrecisionControl_T140": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 1e-06,
+    "period": 140,
+    "deadline": 60,
+    "5qi": 85
+  },
+  "HighReliability_T20": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 1e-08,
+    "period": 20,
+    "deadline": 10,
+    "5qi": 85
+  },
+  "HighReliability_T30": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 1e-08,
+    "period": 30,
+    "deadline": 15,
+    "5qi": 85
+  },
+  "HighReliability_T42": {
+    "type": "RT",
+    "packetsize": 512,
+    "error": 1e-08,
+    "period": 42,
+    "deadline": 20,
+    "5qi": 85
+  },
+  "HighReliability_T60": {
+    "type": "RT",
+    "packetsize": 1024,
+    "error": 1e-08,
+    "period": 60,
+    "deadline": 30,
+    "5qi": 85
+  },
+  "HighReliability_T70": {
+    "type": "RT",
+    "packetsize": 128,
+    "error": 1e-08,
+    "period": 70,
+    "deadline": 40,
+    "5qi": 85
+  },
+  "HighReliability_T105": {
+    "type": "RT",
+    "packetsize": 256,
+    "error": 1e-08,
+    "period": 105,
+    "deadline": 60,
+    "5qi": 85
+  }
+}

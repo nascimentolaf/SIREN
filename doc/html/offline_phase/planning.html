@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration planning &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="generate_flowset.html">Flowset generation</a></li><li><a href="planning.html" class="current">Configuration planning</a></li><li><a href="evaluation.html">ILP evaluation (siren)</a></li><li><a href="../baselines/index.html">Baselines</a><ul><li><a href="../baselines/rr.html">Round-robin (rr)</a></li><li><a href="../baselines/pf.html">Proportional fair (pf)</a></li><li><a href="../baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="../baselines/must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="configuration-planning">Configuration planning<a class="headerlink" href="#configuration-planning" title="Link to this section">#</a></h1>
+<p><code>offline_phase/planning/</code> implements Section V: for every flow of a flowset it
+lists the transmission configurations <code>K = (TB size, MCS)</code> that meet the flow's
+reliability target within its deadline, keeps the Pareto-optimal ones, and
+writes them to <code>planner_report.json</code>, the input of the <a href="evaluation.html">ILP</a>.</p>
+<p>The arithmetic itself lives in <code>common/urllc_config.hpp</code>, shared with every
+baseline (see <a href="../architecture.html#configuration-selection-is-shared-section-v">Architecture</a>);
+the planner is that header plus JSON input and output.</p>
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">cd offline_phase/planning
+make                                         # CMake build -&gt; ./planner
+set -a; source ../../scripts/parameters.sh; set +a
+./planner ../../output/flowsets/flowset_0001.json ../../input/mcs_configurations.json planner_report.json
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Argument</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>&lt;flowset_file&gt;</code></td>
+<td align="left">a flowset (<a href="../input.html#flowset-format">format</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>&lt;mcs_config_file&gt;</code></td>
+<td align="left">the MCS table, current format (<a href="../input.html#mcs-table-mcs_configurationsjson">format</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>&lt;output_file&gt;</code></td>
+<td align="left">where to write the report</td>
+</tr>
+</tbody>
+</table>
+</div><div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Environment</th>
+<th align="left">Required</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>TTI</code></td>
+<td align="left">yes</td>
+<td align="left">seconds</td>
+</tr>
+<tr>
+<td align="left"><code>FEEDBACK_PER_RET</code></td>
+<td align="left">yes</td>
+<td align="left">seconds</td>
+</tr>
+<tr>
+<td align="left"><code>UPPER_LAYER_DELAY</code></td>
+<td align="left">yes</td>
+<td align="left">seconds</td>
+</tr>
+<tr>
+<td align="left"><code>RLC_HEADER_BYTES</code></td>
+<td align="left">no (8)</td>
+<td align="left">bytes</td>
+</tr>
+<tr>
+<td align="left"><code>A_MAX</code></td>
+<td align="left">no (4)</td>
+<td align="left">attempts</td>
+</tr>
+</tbody>
+</table>
+</div><p>From these: <code>t_tx = (TTI + FEEDBACK_PER_RET)</code> and <code>t_up = UPPER_LAYER_DELAY</code>,
+both converted to ms: 1 ms and 4 ms with the defaults.</p>
+<h2 id="what-it-computes">What it computes<a class="headerlink" href="#what-it-computes" title="Link to this section">#</a></h2>
+<p>For every flow and every (TB size, MCS row) of the table:</p>
+<ol>
+<li><code>N = ceil(S_i / (TBS - RLC_HEADER_BYTES))</code> segments (Eq. (2)); a TB size
+   that leaves no payload is skipped.</li>
+<li>Per-TB target <code>E^tb = 1 - (1 - E_i)^(1/N)</code> (Eq. (3)).</li>
+<li>Attempts: the smallest <code>A</code> with <code>BLER^A &lt;= E^tb</code>; rejected if <code>A &gt; A_MAX</code>
+   (Eq. (4)).</li>
+<li><code>C = A * t_tx</code>, how long a TB holds its HARQ process and RBs; rejected if
+   <code>C + t_up &gt; D_i</code> (Eq. (5)): the upper-layer delay holds neither, but a
+   packet is delivered only <code>t_up</code> after its last TB ends.</li>
+</ol>
+<p>The survivors are counted as <code>num_feasible</code>. They are then reduced to the
+Pareto set <code>P_i</code> over <code>(N, A, B)</code> (Eq. (6)), after first collapsing
+configurations equal on all three to the one with the lowest BLER, and counted
+as <code>num_pareto</code>.</p>
+<p>A flow with an empty <code>P_i</code> makes the flowset infeasible. The planner reports
+that (<code>feasible: false</code>, counted in <code>num_infeasible_flows</code>, a line
+<code>[infeasible] &lt;app&gt;: ...</code> on stderr) and still exits 0, so a sweep records a
+verdict instead of a failure.</p>
+<p>The ILP tries every combination of one configuration per flow, so a flowset
+has <code>∏ num_pareto</code> candidates. For the example below that is
+<code>9 × 3 × 7 × 5 = 945</code>.</p>
+<p>The planner keeps only the MCS tables whose <code>sinr</code> equals <code>SINR_DB</code> (default
+10 dB), as every baseline does, and fails if there are none.</p>
+<h2 id="output-planner_reportjson">Output: <code>planner_report.json</code><a class="headerlink" href="#output-planner_reportjson" title="Link to this section">#</a></h2>
+<p>The Pareto set of each flow, grouped by segmentation <code>(N, TBS)</code>, the shape the
+ILP consumes. Real excerpt (<code>flowset_0001</code>, default parameters):</p>
+<pre><code class="language-json">{
+  &quot;parameters&quot;: { &quot;a_max&quot;: 4, &quot;rlc_header_bytes&quot;: 8, &quot;t_tx_ms&quot;: 1.0, &quot;t_up_ms&quot;: 4.0 },
+  &quot;num_infeasible_flows&quot;: 0,
+  &quot;applications&quot;: [
+    {
+      &quot;app&quot;: &quot;DiscreteAutomation_T30&quot;, &quot;type&quot;: &quot;RT&quot;,
+      &quot;packet_size&quot;: 512, &quot;error&quot;: 0.0001, &quot;period&quot;: 30.0, &quot;deadline&quot;: 15.0,
+      &quot;feasible&quot;: true, &quot;num_feasible&quot;: 14, &quot;num_pareto&quot;: 9,
+      &quot;segmentation_options&quot;: [
+        {
+          &quot;num_segments&quot;: 2, &quot;tbs&quot;: 469, &quot;payload_per_segment&quot;: 461,
+          &quot;tb_error&quot;: 5.000125e-05,
+          &quot;mbc_combinations&quot;: [
+            { &quot;m&quot;: 2, &quot;b&quot;: 64, &quot;a&quot;: 2, &quot;c&quot;: 2.0, &quot;bler&quot;: 0.006375 },
+            { &quot;m&quot;: 3, &quot;b&quot;: 50, &quot;a&quot;: 3, &quot;c&quot;: 3.0, &quot;bler&quot;: 0.024141 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>parameters</code></td>
+<td align="left">the values used: <code>a_max</code>, <code>rlc_header_bytes</code>, <code>t_tx_ms</code>, <code>t_up_ms</code>. The ILP reads <code>t_up_ms</code> from here (and refuses a report without it)</td>
+</tr>
+<tr>
+<td align="left"><code>applications[].feasible</code>, <code>num_feasible</code>, <code>num_pareto</code></td>
+<td align="left"><code>P_i</code> non-empty; configurations passing both screens; size of <code>P_i</code></td>
+</tr>
+<tr>
+<td align="left"><code>segmentation_options[]</code></td>
+<td align="left">one per distinct <code>(num_segments, tbs)</code> in <code>P_i</code></td>
+</tr>
+<tr>
+<td align="left"><code>.payload_per_segment</code></td>
+<td align="left"><code>tbs - RLC_HEADER_BYTES</code></td>
+</tr>
+<tr>
+<td align="left"><code>.tb_error</code></td>
+<td align="left"><code>E^tb</code> of Eq. (3) for this <code>N</code></td>
+</tr>
+<tr>
+<td align="left"><code>.mbc_combinations[]</code></td>
+<td align="left">the configurations of <code>P_i</code> at this segmentation: MCS <code>m</code>, RBs per attempt <code>b</code>, attempts <code>a</code>, WCTT <code>c = a * t_tx</code> in ms (the HARQ process and RBs held, without <code>t_up</code>), per-attempt <code>bler</code></td>
+</tr>
+<tr>
+<td align="left"><code>num_infeasible_flows</code></td>
+<td align="left">number of flows with an empty <code>P_i</code></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="exit-status">Exit status<a class="headerlink" href="#exit-status" title="Link to this section">#</a></h2>
+<p><code>0</code> when the report was written (including when flows are infeasible); <code>1</code> on
+a missing or malformed environment variable; <code>255</code> (<code>-1</code>) when an input file
+cannot be opened or the MCS table is in the retired format (it then points at
+the generator script).</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="generate_flowset.html">&larr; Flowset generation</a><a class="next" href="evaluation.html">ILP evaluation (siren) &rarr;</a></div>
+<p class="source">Generated from <code>doc/offline_phase/planning.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#usage">Usage</a></li><li class="l2"><a href="#what-it-computes">What it computes</a></li><li class="l2"><a href="#output-planner_reportjson">Output: planner_report.json</a></li><li class="l2"><a href="#exit-status">Exit status</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

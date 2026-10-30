@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html" class="current">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="getting-started">Getting started<a class="headerlink" href="#getting-started" title="Link to this section">#</a></h1>
+<p>From a fresh checkout to a build, a checked catalogue and a first run. Paths
+are relative to the repository root. To reproduce the paper's results,
+continue with the run guide, <code>RUN_EXPERIMENTS.md</code> at the repository root.</p>
+<h2 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this section">#</a></h2>
+<p>Linux with Bash.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Requirement</th>
+<th align="left">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><a href="https://www.gurobi.com">Gurobi</a> 13.0 (the paper's runs used 13.0.1), its C API from Gurobi's own distribution, unpacked; <code>GUROBI_HOME</code> set to its <code>linux64</code> directory</td>
+<td align="left"><code>siren</code> (build and run)</td>
+</tr>
+<tr>
+<td align="left">a Gurobi license, found through <code>GRB_LICENSE_FILE</code> or Gurobi's default places such as <code>~/gurobi.lic</code>. Each <code>siren</code> process takes one license token for its whole run</td>
+<td align="left">running <code>siren</code></td>
+</tr>
+<tr>
+<td align="left">CMake ≥ 3.13, <code>make</code>, <code>g++</code> with C++20 support (<code>siren</code> and the baselines are built as C++17; the flowset generator and the planner ask CMake for C++20)</td>
+<td align="left">every C++ component</td>
+</tr>
+<tr>
+<td align="left"><code>nlohmann/json</code> installed system-wide (<code>nlohmann-json3-dev</code> on Debian/Ubuntu); <code>scripts/install.sh</code> installs it with <code>sudo apt-get</code> if CMake cannot find it</td>
+<td align="left"><code>siren</code>'s CMake build (<code>find_package(nlohmann_json)</code>); every other component bundles its own <code>json.hpp</code></td>
+</tr>
+<tr>
+<td align="left"><code>bc</code>, <code>lscpu</code>, <code>taskset</code>, <code>flock</code>, <code>hostname</code>, <code>mktemp</code> (util-linux and coreutils)</td>
+<td align="left"><code>scripts/run_paper_experiment.sh</code> and <code>scripts/parameters.sh</code></td>
+</tr>
+<tr>
+<td align="left">Python 3 with <code>numpy</code>, <code>pandas</code> and <code>matplotlib</code></td>
+<td align="left"><code>analysis/plot_paper.py</code>, <code>analysis/plot_evaluation.py</code></td>
+</tr>
+<tr>
+<td align="left">Python 3 (standard library only)</td>
+<td align="left"><code>scripts/check_catalogue.py</code>, <code>analysis/collect_verdicts.py</code>, <code>analysis/rq4_hyperperiod.py</code>, <code>offline_phase/siren/validate_schedule.py</code></td>
+</tr>
+</tbody>
+</table>
+</div><p>Neither the repository nor its scripts install Gurobi or a license. The
+<code>gurobipy</code> wheel from pip is not enough: <code>siren</code> needs the C headers and
+library of the full distribution.</p>
+<p><strong>For the link-level BLER simulation</strong> (only to regenerate the MCS table, see
+<a href="bler.html">BLER and MCS tables</a>): Python ≥ 3.10 with the packages of
+<code>bler/requirements.txt</code> (Sionna 1.x, TensorFlow, SciPy).</p>
+<p><strong>For these docs</strong>: the <code>markdown</code> Python package.</p>
+<h2 id="build">Build<a class="headerlink" href="#build" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">export GUROBI_HOME=/path/to/gurobi1301/linux64
+(cd scripts &amp;&amp; ./install.sh)      # or ./install_conda.sh inside an activated conda env
+make -C common test               # expects: All Section V checks passed.
+</code></pre>
+<p><code>install.sh</code> installs nlohmann/json if missing, then runs <code>make clean &amp;&amp; make</code>
+in, in order: the flowset generator, the planner, <code>siren</code>, and
+<code>baseline_algorithms/</code> (the four baselines). It does <strong>not</strong> touch <code>output/</code>,
+and does not build the unit test of the shared Section V code (the <code>make -C
+common test</code> line above). Building needs no Gurobi license. CMake prints
+<code>Found Gurobi: .../libgurobi130.so</code> when it finds Gurobi, and stops with
+<code>Gurobi 13.0 not found under GUROBI_HOME=...</code> when it does not.</p>
+<p>The <code>build</code> stage of <code>scripts/run_paper_experiment.sh</code> builds the planner, the
+baselines and <code>siren</code> (not the flowset generator, which the experiments do not
+run).</p>
+<p>Rebuild after every change to the C++ code: the scripts run whatever
+binaries are on disk.</p>
+<h2 id="check-the-inputs">Check the inputs<a class="headerlink" href="#check-the-inputs" title="Link to this section">#</a></h2>
+<p>The repository ships 1000 flowsets in <code>output/flowsets/</code>, drawn from the
+30-application catalogue <code>input/app_database.json</code>. Check that the catalogue
+satisfies the evaluation's invariants:</p>
+<pre><code class="language-bash">python3 scripts/check_catalogue.py
+</code></pre>
+<p>It prints the catalogue's deadlines, periods, Pareto-set sizes and candidate
+counts, ends with <code>all invariants hold</code>, and exits non-zero if an application
+is infeasible alone, if <code>D_i &gt; T_i</code>, if a time is not a whole millisecond, if
+the hyperperiod exceeds 420 ms, or if <code>C(30, 4)</code> is too small for the flowsets
+requested. See <a href="input.html">Inputs</a>.</p>
+<h2 id="a-first-run">A first run<a class="headerlink" href="#a-first-run" title="Link to this section">#</a></h2>
+<p><code>run_paper_experiment.sh</code> runs the paper's whole experiment on all 1000
+flowsets, which takes long. Its options allow a small first run, on a few
+flowsets and one stage:</p>
+<pre><code class="language-bash">printf 'flowset_%04d\n' 1 2 &gt; first.txt
+mkdir -p /tmp/first &amp;&amp; ln -s &quot;$PWD/output/flowsets&quot; /tmp/first/flowsets
+OUTPUT_DIR=/tmp/first RBS=135 ./scripts/run_paper_experiment.sh \
+    -j 2 --stages sweep --flowsets first.txt
+</code></pre>
+<ul>
+<li><code>--flowsets first.txt</code> runs flowsets <code>0001</code> and <code>0002</code> only; <code>--stages
+  sweep</code> runs only the sweep (no build, RQ4 or analysis).</li>
+<li><code>RBS=135</code> runs only the 135 RB budget (an override meant for tests).</li>
+<li><code>OUTPUT_DIR=/tmp/first</code> keeps the run out of the repository's <code>output/</code>; it
+  needs a <code>flowsets/</code> folder, here a link to the committed flowsets.</li>
+<li><code>-j 2</code> runs two workers, so at most two <code>siren</code> processes, and two license
+  tokens, at a time.</li>
+</ul>
+<p>Even so, a flowset has a median of 1200 candidate tuples and at most 11 000
+(as <code>check_catalogue.py</code> prints them), each allowed up to 60 s: a first run
+can take hours. Each pair's status is in
+<code>/tmp/first/sweep/rb135/.parallel/status/</code> (<code>ok</code> when done).</p>
+<h2 id="look-at-the-results">Look at the results<a class="headerlink" href="#look-at-the-results" title="Link to this section">#</a></h2>
+<pre><code class="language-text">&lt;OUTPUT_DIR&gt;/
+├── sweep/rb135/reports/&lt;method&gt;/flowset_000N/
+│   ├── combo_*.json                 # schedule tables (dispatch tables)
+│   ├── planner_report.json          # ilp only: the candidate configurations
+│   └── offline_phase_report.json    # ilp only: verdict over the candidate sweep
+├── sweep/rb135/logs/&lt;method&gt;/flowset_000N.log   # what each method printed
+└── paper_run/                       # manifest_&lt;host&gt;.txt, pairs_&lt;host&gt;.tsv
+</code></pre>
+<p>Reduce the reports to one verdict per (method, flowset):</p>
+<pre><code class="language-bash">python3 analysis/collect_verdicts.py \
+    --reports /tmp/first/sweep/rb135/reports --flowsets output/flowsets \
+    --mcs input/mcs_configurations.json --out verdicts.csv
+</code></pre>
+<p>It writes the CSV and prints a method × verdict summary. The verdict
+vocabulary is defined in <a href="analysis/index.html#the-verdict-table">Analysis</a>.</p>
+<h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Link to this section">#</a></h2>
+<ul>
+<li><a href="architecture.html">Architecture</a>: what the ILP proves, what a baseline
+  simulates, and why the two are compared the way they are.</li>
+<li><a href="scripts.html">Scripts</a>: <code>run_paper_experiment.sh</code> in full.</li>
+<li><a href="analysis/index.html">Analysis</a>: from reports to the paper's table, figures
+  and macros.</li>
+<li><code>RUN_EXPERIMENTS.md</code>: the paper's runs, step by step.</li>
+</ul>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="index.html">&larr; SIREN documentation</a><a class="next" href="architecture.html">Architecture &rarr;</a></div>
+<p class="source">Generated from <code>doc/getting_started.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#prerequisites">Prerequisites</a></li><li class="l2"><a href="#build">Build</a></li><li class="l2"><a href="#check-the-inputs">Check the inputs</a></li><li class="l2"><a href="#a-first-run">A first run</a></li><li class="l2"><a href="#look-at-the-results">Look at the results</a></li><li class="l2"><a href="#next-steps">Next steps</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

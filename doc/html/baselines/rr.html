@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Round-robin (rr) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="index.html">Baselines</a><ul><li><a href="rr.html" class="current">Round-robin (rr)</a></li><li><a href="pf.html">Proportional fair (pf)</a></li><li><a href="qospf.html">QoS-PF (qospf)</a></li><li><a href="must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="round-robin-rr">Round-robin (<code>rr</code>)<a class="headerlink" href="#round-robin-rr" title="Link to this section">#</a></h1>
+<p>Classic cyclic round-robin over flows: channel-independent, deadline-agnostic.
+It is the reference "no policy at all" baseline.</p>
+<p>Source: <code>baseline_algorithms/rr/</code> (<code>main.cpp</code>, <code>rr.cpp</code>). Shared behaviour
+(configuration selection, job model, timing, output) is described in
+<a href="index.html">Baselines</a>.</p>
+<h2 id="policy">Policy<a class="headerlink" href="#policy" title="Link to this section">#</a></h2>
+<p>The scheduler keeps one FIFO queue per flow and a round-robin pointer over the
+flows. At every scheduling instant, while a HARQ process is free:</p>
+<ol>
+<li>Starting at the pointer, take the first flow whose queue is non-empty <strong>and</strong>
+   whose head job's <code>B</code> fits in the RBs still free. Flows whose head does not
+   fit are skipped for this decision.</li>
+<li>Start that job on the lowest-index free HARQ process, at the current TTI
+   boundary, for its full duration <code>C</code>.</li>
+<li>Move the pointer to the flow after the one just served.</li>
+</ol>
+<p>So each decision serves at most one segment of a flow before moving on;
+segments of the same packet, and several releases of the same flow, queue
+behind each other in FIFO order. When nothing can start, time jumps to the
+next release or completion.</p>
+<h2 id="specifics">Specifics<a class="headerlink" href="#specifics" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>config.objective</code></td>
+<td align="left"><code>round_robin</code></td>
+</tr>
+<tr>
+<td align="left">Default output (no 3rd argument)</td>
+<td align="left"><code>./&lt;flowset stem&gt;_rr.json</code></td>
+</tr>
+<tr>
+<td align="left">Reads <code>SINR_DB</code></td>
+<td align="left">yes</td>
+</tr>
+<tr>
+<td align="left">Extra environment</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left">Extra report fields</td>
+<td align="left">none</td>
+</tr>
+</tbody>
+</table>
+</div><p>A job runs to completion even after its deadline; the verdict comes from
+comparing each packet's last TB with its deadline (see
+<a href="../analysis/index.html#the-verdict-table">Analysis</a>).</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="index.html">&larr; Baselines</a><a class="next" href="pf.html">Proportional fair (pf) &rarr;</a></div>
+<p class="source">Generated from <code>doc/baselines/rr.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#policy">Policy</a></li><li class="l2"><a href="#specifics">Specifics</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

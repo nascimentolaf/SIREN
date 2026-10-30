@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analysis &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="../baselines/index.html">Baselines</a><ul><li><a href="../baselines/rr.html">Round-robin (rr)</a></li><li><a href="../baselines/pf.html">Proportional fair (pf)</a></li><li><a href="../baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="../baselines/must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="index.html" class="current">Analysis</a><ul><li><a href="figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Link to this section">#</a></h1>
+<p><code>analysis/</code> turns the sweep's reports into verdict tables, and those into the
+paper's table, figures and LaTeX macros. Where <code>run_paper_experiment.sh</code>
+produces reports, these scripts reduce them to <strong>one row per (method,
+flowset)</strong>, so the methods can be compared. Nothing here runs a scheduler,
+except <code>rq4_hyperperiod.py run</code>, which solves the RQ4 models with <code>siren</code>.</p>
+<p>The distinction everything here is built on: <strong>how a method arrives at "this
+flowset is fine"</strong>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Method</th>
+<th align="left">How it decides</th>
+<th align="left">What an <code>ok</code> is worth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">baselines (<code>rr</code>, <code>pf</code>, <code>qospf</code>, <code>must</code>)</td>
+<td align="left">simulate one hyperperiod and look for a late packet</td>
+<td align="left">evidence about <strong>the run that was simulated</strong></td>
+</tr>
+<tr>
+<td align="left">SIREN (<code>ilp</code>, solved by <code>siren</code>)</td>
+<td align="left">prove that a table meeting every deadline exists</td>
+<td align="left">evidence about <strong>every run</strong></td>
+</tr>
+</tbody>
+</table>
+</div><div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Script</th>
+<th align="left">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>collect_verdicts.py</code></td>
+<td align="left">reports → verdict CSV</td>
+</tr>
+<tr>
+<td align="left"><code>plot_paper.py</code></td>
+<td align="left">the paper's table, figures and macros, from the RB-budget sweep and RQ4</td>
+</tr>
+<tr>
+<td align="left"><code>plot_evaluation.py</code></td>
+<td align="left">plotting styles and helpers that <code>plot_paper.py</code> imports; also draws a set of evaluation figures of its own (see <a href="figures.html">Figures</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>rq4_hyperperiod.py</code></td>
+<td align="left">RQ4: prepare, solve and collect the ILP models of stretched hyperperiods</td>
+</tr>
+</tbody>
+</table>
+</div><p>The <code>analysis</code> stage of <code>scripts/run_paper_experiment.sh</code> runs them in this
+order, from empty CSVs:</p>
+<pre><code class="language-bash">(cd scripts &amp;&amp; ./sweep_experiment.sh --collect)               # analysis/csv/output_rb&lt;B&gt;.csv, output_sweep.csv
+python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis/csv/rq4_hyperperiod.csv
+python3 analysis/plot_paper.py --derive                       # analysis/csv/derived_*.csv
+python3 analysis/plot_paper.py                                # analysis/figures/paper/
+</code></pre>
+<h2 id="data-flow">Data flow<a class="headerlink" href="#data-flow" title="Link to this section">#</a></h2>
+<pre><code class="language-text"> output/sweep/rb&lt;B&gt;/reports/&lt;method&gt;/...           output/rq4_siren/flowset_*/H*.result.json
+          |                                                 |
+          v  sweep_experiment.sh --collect                  v  rq4_hyperperiod.py collect
+          |  (collect_verdicts.py per budget)               |
+          v                                                 v
+ analysis/csv/output_rb&lt;B&gt;.csv, output_sweep.csv    analysis/csv/rq4_hyperperiod.csv
+          |                                                 |
+          +-------------&gt; plot_paper.py &lt;-------------------+
+                             ^      |
+ output/sweep/ (--derive) ---+      v
+                         analysis/figures/paper/
+</code></pre>
+<hr>
+<h2 id="the-verdict-table">The verdict table<a class="headerlink" href="#the-verdict-table" title="Link to this section">#</a></h2>
+<p>One row per (method, flowset), as <code>collect_verdicts.py</code> writes it.
+<code>scripts/sweep_experiment.sh --collect</code> prepends <code>rb</code> to the stacked table.</p>
+<p><strong>Columns:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Column</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>flowset</code>, <code>method</code></td>
+<td align="left">what was run</td>
+</tr>
+<tr>
+<td align="left"><code>verdict</code></td>
+<td align="left">see below</td>
+</tr>
+<tr>
+<td align="left"><code>evidence</code></td>
+<td align="left"><code>proof</code> (ILP), <code>simulation</code> (baselines), <code>configuration selection</code> (infeasible before scheduling), or <code>crash</code></td>
+</tr>
+<tr>
+<td align="left"><code>n_flows</code>, <code>n_flows_placed</code></td>
+<td align="left">flows in the set; flows actually placed</td>
+</tr>
+<tr>
+<td align="left"><code>hyperperiod_tti</code></td>
+<td align="left"><code>H</code></td>
+</tr>
+<tr>
+<td align="left"><code>n_deadline_misses</code></td>
+<td align="left">late <strong>packets</strong> (a packet is late when its last TB's end plus <code>t_up</code>, the report's <code>config.t_up_tti</code>, exceeds its deadline), plus packets dropped by <code>must</code></td>
+</tr>
+<tr>
+<td align="left"><code>n_dropped_packets</code></td>
+<td align="left"><code>must</code> only: packets dropped at lifetime expiry</td>
+</tr>
+<tr>
+<td align="left"><code>worst_overrun_tti</code></td>
+<td align="left">largest lateness of a packet</td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak</code>, <code>rb_capacity</code>, <code>rb_violation</code></td>
+<td align="left">peak RBs in any TTI of the table, <code>B^max</code>, and whether the peak exceeds it</td>
+</tr>
+<tr>
+<td align="left"><code>harq_overlap</code></td>
+<td align="left">two TBs on one HARQ process at once</td>
+</tr>
+<tr>
+<td align="left"><code>harq_used</code></td>
+<td align="left">HARQ processes appearing in the table</td>
+</tr>
+<tr>
+<td align="left"><code>t_min_tti</code>, <code>rb_window_mean_peak</code></td>
+<td align="left">shortest period of the set, and the highest mean RB usage over any window of that length (cyclic over <code>H</code>). <code>rb_capacity - rb_window_mean_peak</code> is the mean capacity left to a non-real-time flow of period <code>t_min</code> (RQ3)</td>
+</tr>
+<tr>
+<td align="left"><code>rb_peak_optimal</code></td>
+<td align="left">ILP under <code>rb_peak</code>: the peak the solver reports (equals <code>rb_peak</code> measured on the table)</td>
+</tr>
+<tr>
+<td align="left"><code>n_rb_peak_solved</code>, <code>n_rb_peak_pruned</code>, <code>n_rb_peak_timed_out</code>, <code>rb_peak_optimal_over_decided</code></td>
+<td align="left">ILP under bounded <code>rb_peak</code>: the <code>rb_peak_search</code> block of the report</td>
+</tr>
+<tr>
+<td align="left"><code>worst_reliability_ratio</code>, <code>reliability_ok</code></td>
+<td align="left">achieved packet error / <code>E_i</code>, worst flow; <code>&lt;= 1</code> is safe</td>
+</tr>
+<tr>
+<td align="left"><code>n_candidates_total</code>, <code>n_candidates_tested</code>, <code>n_schedulable</code>, <code>n_candidates_timed_out</code>, <code>n_candidates_errored</code>, <code>timed_out</code></td>
+<td align="left">ILP sweep counters (<code>n_candidates_errored</code>: candidates that ended in a solver error, undecided)</td>
+</tr>
+<tr>
+<td align="left"><code>solve_time_ms_median</code>, <code>solve_time_ms_max</code></td>
+<td align="left">ILP per-candidate solve times</td>
+</tr>
+<tr>
+<td align="left"><code>n_jobs</code>, <code>n_variables</code>, <code>n_constraints</code></td>
+<td align="left">ILP model size</td>
+</tr>
+<tr>
+<td align="left"><code>infeasible_flows</code></td>
+<td align="left">the flows that made the set infeasible or unplaced, or a crash's stderr</td>
+</tr>
+<tr>
+<td align="left"><code>verdict_only</code></td>
+<td align="left">ILP: the report comes from <code>siren --stop-at-first</code>, so <code>rb_peak</code> is left empty (never in the paper's runs)</td>
+</tr>
+</tbody>
+</table>
+</div><p>Under the <code>rb_peak</code> objective the ILP row describes the schedulable candidate
+with the <strong>smallest peak</strong>; otherwise the first schedulable candidate.</p>
+<p><strong>Verdicts:</strong></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Value</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>ok</code></td>
+<td align="left">baselines: no packet missed its deadline in the simulated run. ILP: a schedule was proved to exist</td>
+</tr>
+<tr>
+<td align="left"><code>ko_deadline_miss</code></td>
+<td align="left">at least one packet finished late (or, for <code>must</code>, was dropped)</td>
+</tr>
+<tr>
+<td align="left"><code>ko_infeasible</code></td>
+<td align="left">some flow has no admissible configuration: Section V failed, scheduling never happened. For the ILP: empty Pareto set. For a baseline: every configuration is wider than the cell</td>
+</tr>
+<tr>
+<td align="left"><code>ko_unplaced</code></td>
+<td align="left">a baseline declined to place a flow (none of the four baselines does)</td>
+</tr>
+<tr>
+<td align="left"><code>ko_unschedulable</code></td>
+<td align="left">ILP: every candidate was proved unschedulable</td>
+</tr>
+<tr>
+<td align="left"><code>timeout</code></td>
+<td align="left">ILP: no candidate proved schedulable and at least one hit a budget or ended in a solver error (<code>collect_verdicts.py</code> warns about the latter). Never "unschedulable"</td>
+</tr>
+<tr>
+<td align="left"><code>error</code></td>
+<td align="left">the method wrote no report at all; recorded, so a hole in the grid is visible</td>
+</tr>
+<tr>
+<td align="left"><code>ko_amax</code></td>
+<td align="left">only in <code>plot_paper.py</code>: a baseline run that used more than <code>A^max</code> attempts (see <a href="#ko_amax">below</a>)</td>
+</tr>
+</tbody>
+</table>
+</div><p>How each report becomes a verdict is listed in
+<a href="../output_formats.html#offline_phase_reportjson">Output formats</a> for the ILP;
+for baselines, in this order: <code>ko_infeasible</code> if the report says
+<code>schedulable: false</code> with <code>infeasible_flows</code>; <code>ko_unplaced</code> if <code>unscheduled</code> is
+non-empty; otherwise <code>ko_deadline_miss</code> or <code>ok</code> from the table.</p>
+<hr>
+<h2 id="collect_verdictspy"><code>collect_verdicts.py</code><a class="headerlink" href="#collect_verdictspy" title="Link to this section">#</a></h2>
+<p>Reduces a <code>reports/</code> tree to the verdict CSV and prints a method × verdict
+summary.</p>
+<pre><code class="language-bash">python3 analysis/collect_verdicts.py \
+    --reports output/sweep/rb135/reports --flowsets output/flowsets \
+    --mcs input/mcs_configurations.json --out verdicts_rb135.csv
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--reports &lt;dir&gt;</code></td>
+<td align="left">a <code>reports/&lt;method&gt;/&lt;flowset&gt;/</code> tree, such as <code>output/sweep/rb&lt;B&gt;/reports</code></td>
+</tr>
+<tr>
+<td align="left"><code>--flowsets &lt;dir&gt;</code>, <code>--mcs &lt;file&gt;</code></td>
+<td align="left">needed for the reliability check, which takes the BLERs of the tables at <code>SINR_DB</code> (default 10 dB)</td>
+</tr>
+<tr>
+<td align="left"><code>--out &lt;file&gt;</code></td>
+<td align="left">CSV to write</td>
+</tr>
+<tr>
+<td align="left"><code>--per-report</code></td>
+<td align="left">also print a summary counting <strong>dispatch tables</strong> rather than flowsets (they differ only for the ILP, which writes one per schedulable candidate), with how far the ILP's sweeps got; the CSV is unchanged</td>
+</tr>
+<tr>
+<td align="left"><code>--merge</code></td>
+<td align="left">update <code>--out</code> instead of replacing it: the rows of the methods found under <code>--reports</code> are rewritten, every other row is kept as it is (fails if the columns differ)</td>
+</tr>
+</tbody>
+</table>
+</div><p>It reads <code>offline_phase_report.json</code> for the ILP and <code>combo_0000.json</code> for
+every other method. A method with report directories but no reports appears in
+<code>--per-report</code> with <code>reports = 0</code> and is absent from the verdict table; that is
+how a crashed run becomes visible.</p>
+<hr>
+<h2 id="paper-results-plot_paperpy">Paper results (<code>plot_paper.py</code>)<a class="headerlink" href="#paper-results-plot_paperpy" title="Link to this section">#</a></h2>
+<p>The tables, figures and numbers of the paper's Performance Evaluation section,
+from the RB-budget sweep (<code>B^max</code> in {51, 79, 107, 135}, 1000 flowsets of 4
+applications, <code>M = 3</code>, 60 s per ILP candidate, no flowset budget) and from
+RQ4 (<a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">below</a>).</p>
+<pre><code class="language-bash">python3 analysis/plot_paper.py --derive   # the two derived CSVs, from output/sweep/
+python3 analysis/plot_paper.py            # analysis/figures/paper/
+</code></pre>
+<p>Its inputs are in <code>analysis/csv/</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Input</th>
+<th align="left">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>output_sweep.csv</code></td>
+<td align="left">verdicts of every budget (<code>sweep_experiment.sh --collect</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>derived_baseline_configs.csv</code></td>
+<td align="left">attempts and <code>C</code> each baseline committed to, per (budget, method, flowset), extracted from <code>output/sweep/</code> by <code>--derive</code></td>
+</tr>
+<tr>
+<td align="left"><code>derived_ilp_timing_rb135.csv</code></td>
+<td align="left">ILP time per flowset at 135 RBs, parsed from <code>output/sweep/rb135/logs/ilp/*.log</code> by <code>--derive</code>: <code>first_table_s</code> (sequential time to the first schedulable candidate) and <code>decide_all_s</code> (time to decide every candidate; both lower bounds when a candidate hit the cap), Gurobi's solve times without model building; <code>median_candidate_s</code>; <code>n_candidates</code>, <code>n_capped</code> (at the cap) and <code>n_errored</code> (solver errors); <code>host</code>, the machine that ran the flowset (the log's <code>Host:</code> line)</td>
+</tr>
+<tr>
+<td align="left"><code>rq4_hyperperiod.csv</code></td>
+<td align="left">optional: one row per RQ4 model, from <code>rq4_hyperperiod.py collect</code>; without it the RQ4 figure and macros are not written</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>--derive</code> prints <code>wrote derived_ilp_timing_rb135.csv: &lt;n&gt; rows</code>. If there are
+no ILP logs, it says the timing CSV was kept instead. It updates the derived
+CSVs from whatever <code>output/sweep/</code> holds: a (budget, method) whose reports are
+absent keeps its rows, which is why the analysis stage deletes the CSVs first.</p>
+<p><strong>Methods.</strong> The figures draw the methods of <code>PLOTTED</code> in <code>plot_paper.py</code>:
+SIREN, MUST, QoS-PF, RR and PF. They label the ILP with the paper's name for
+it, SIREN (<code>NAME</code>). The macros cover the ILP and the <code>BASELINES</code> (MUST,
+QoS-PF, RR, PF).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Output (<code>analysis/figures/paper/</code>)</th>
+<th align="left">Shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>table_rq2.tex</code></td>
+<td align="left">RQ2: the tabular of the verdict shares (%) per budget and method (sched., undec., unsch., missed), in bold each budget's highest schedulable share and SIREN's missed share</td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq2_verdicts</code></td>
+<td align="left">RQ2: verdict mix per method at the main budget (135)</td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq2_scaling</code></td>
+<td align="left">RQ2: schedulable share against the RB budget</td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq3_rb_usage</code></td>
+<td align="left">RQ3: each method's median peak RB usage as a share of <code>B^max</code>, on the flowsets all five plotted methods schedule at that budget, so that every method is measured on the same flowsets; the value is written at every point. The four baselines' peaks coincide on most flowsets (their configuration, the same for all, sets them), so their points are spread sideways and a value they share is written once, in black. A budget with no such flowset is left out</td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq3_residual_gain</code></td>
+<td align="left">RQ3: guaranteed residual capacity the ILP leaves beyond each baseline, paired on the flowsets both schedule (median, IQR). A budget where no drawn baseline has 10 pairs (<code>MIN_N</code>) is left off the x axis and has no median macro (<code>--</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq4_time</code></td>
+<td align="left">the ILP's time to a first table, and to decide every candidate (sequential), at 135 RBs, from <code>derived_ilp_timing_rb135.csv</code></td>
+</tr>
+<tr>
+<td align="left"><code>fig_rq4_hyperperiod</code></td>
+<td align="left">RQ4: time to decide one ILP model against its hyperperiod, log-log; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod and the time limit</td>
+</tr>
+<tr>
+<td align="left"><code>numbers_results.tex</code></td>
+<td align="left"><code>\newcommand</code> macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also <code>\RqFourModels</code>, <code>\RqFourFlowsets</code>, <code>\RqFourCapSec</code> and, per target hyperperiod spelled out digit by digit (<code>TwoFiveTwoZeroZero</code> for 25200), <code>\RqFourMedianSec…</code>, <code>\RqFourTimeoutShare…</code>, <code>\RqFourMedianJobs…</code> and <code>\RqFourMedianBinaries…</code></td>
+</tr>
+</tbody>
+</table>
+</div><p>Each figure is written as <code>.pdf</code> and <code>.png</code>. Options: <code>--outdir</code> (default
+<code>analysis/figures/paper</code>), <code>--width</code>/<code>--height</code> (inches, 1.7 × 1.45),
+<code>--fontsize</code> (7), <code>--formats</code> (<code>pdf png</code>).</p>
+<p>Some macros, for reading <code>numbers_results.tex</code>:</p>
+<ul>
+<li>the shares (<code>Ok*</code>) are of all the flowsets of the CSVs (1000 in the paper's
+  run), and so is <code>HarmonicPairShare</code>, the share of their pairs of distinct
+  periods in which one period divides the other (read from
+  <code>output/flowsets/</code>);</li>
+<li><code>NGenerated</code> is the number of flowsets in <code>output/flowsets/</code>;
+  <code>AppAppearancesMin</code> and <code>AppAppearancesMax</code> are how many flowsets hold the
+  least and the most frequent application;</li>
+<li><code>LeadMustMin</code> and <code>LeadMustMax</code> are the ILP's smallest and largest lead over
+  MUST across the budgets, in percentage points, from the shares as the RQ2
+  table rounds them;</li>
+<li><code>OkPfFamilyMin*</code> and <code>OkPfFamilyMax*</code> (per budget), and
+  <code>MissOnProvedPfFamilyMin</code> and <code>MissOnProvedPfFamilyMax</code> (rb135), are the
+  lowest and highest of QoS-PF, RR and PF (<code>PF_FAMILY</code>);</li>
+<li>the per-tuple times (<code>MedianCandidateSec</code>, <code>CappedTupleShare</code>) and the
+  first-table times (<code>FirstTableMedianSec</code>, <code>FirstTableWithin*</code>) come from
+  <code>derived_ilp_timing_rb135.csv</code>; the tuple counts (<code>MedianTuples</code>,
+  <code>MaxTuples</code>, <code>MedianTuplesAll</code>) from <code>n_candidates_total</code> at 135 RBs.</li>
+</ul>
+<h3 id="ko_amax"><code>ko_amax</code><a class="headerlink" href="#ko_amax" title="Link to this section">#</a></h3>
+<p>Baselines select from the unscreened configuration set, and fall back to
+configurations needing more than <code>A^max</code> attempts when none within <code>A^max</code>
+fits the cell (see <a href="../baselines/index.html#configuration-selection">Baselines</a>).
+The paper defines <code>A^max</code> as a layer-wide limit, so a baseline run whose
+largest attempt count exceeds <code>A_MAX</code> is outside the model: <code>plot_paper.py</code>
+reports it as <code>ko_amax</code> ("needs <code>A &gt; A^max</code>"), leaving the raw CSV untouched.
+On the shipped catalogue and MCS table it never happens: every application has
+a configuration within <code>A^max</code> that fits even 51 RBs, so <code>ko_amax</code> counts 0 at
+every budget (the <code>Amax*</code> macros).</p>
+<hr>
+<h2 id="rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">RQ4: solving time against the hyperperiod (<code>rq4_hyperperiod.py</code>)<a class="headerlink" href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy" title="Link to this section">#</a></h2>
+<p>Each model is one flowset with one configuration per flow, solved for a table
+under the feasibility objective, on one thread, with a time limit (<code>--cap</code>,
+1 h in the paper's runs). The flowsets are a sample (<code>--sample</code>, 100) of those
+the sweep proved schedulable at the budget <code>--reports</code> names (135 RBs in
+<code>run_paper_experiment.sh</code>; the default is <code>rb51</code>), and the configuration is
+the sweep's minimum-peak tuple, read from
+<code>output/sweep/rb&lt;B&gt;/reports/ilp/&lt;flowset&gt;/offline_phase_report.json</code>. Each model
+records that budget (<code>n_rb</code>) and is solved at it, so the RB limit is as tight
+as where the tuple was proved. Every flow keeps its payload, error target,
+deadline and configuration; only its period grows, to a divisor of a target
+hyperperiod <code>H*</code> in {420, 840, 2520, 8400, 25200} ms (multiples of 420, which
+every catalogue period divides: Goossens and Macq's hyperperiod limitation),
+at least the original period and at most 1.5 times it (<code>--stretch</code>), with lcm
+exactly <code>H*</code>. A flowset with no such periods skips that <code>H*</code>. Since the
+deadline stays, a longer period lowers the load, but the new release
+alignments can still make a model infeasible: the figure tells the outcomes
+apart.</p>
+<p>The <code>rq4</code> stage of <code>run_paper_experiment.sh</code> runs, in <code>output/rq4_siren/</code>:</p>
+<pre><code class="language-bash">python3 analysis/rq4_hyperperiod.py --out output/rq4_siren prepare \
+    --reports output/sweep/rb135/reports/ilp --sample 100
+python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
+    --solver offline_phase/siren/siren -j &lt;workers&gt; --max-h 8400 --cap 3600 --harqs 3
+python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
+    --solver offline_phase/siren/siren -j 12 --cap 3600 --harqs 3
+python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis stage
+</code></pre>
+<p>The first <code>run</code> solves the models up to 8400 ms, the second the larger ones
+(the models already solved are skipped), fewer at a time since each needs
+several GB. Always pass <code>--solver</code>: its default names a binary this repository
+does not ship.</p>
+<p><code>run</code> solves the largest models first and records, per model, the outcome,
+the solving time (the time limit for a timeout), the wall time, the peak memory
+(only where <code>/usr/bin/time</code> exists), the machine (<code>host</code>) and the solver
+binary's name (<code>solver</code>); it skips models that already have a result
+(<code>--force</code> solves them again). <code>collect</code> adds each model's size (jobs,
+binaries, rows, computed as the ILP builds it) and prints a summary per target
+hyperperiod. The ILP prints times from 1000 s on in scientific notation;
+<code>collect</code> times a decided model without a solving time by its wall time, and
+says so in its <code>solve_s_source</code> column (<code>solver</code> or <code>wall</code>). Models solved at
+the same time share the machine's caches and memory bandwidth, so the times
+depend on how many run at once.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Subcommand</th>
+<th align="left">Options</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>prepare</code></td>
+<td align="left"><code>--sample N</code> (100), <code>--seed S</code>, <code>--targets ...</code>, <code>--stretch 1.5</code>, <code>--tuple {sweep,lowest-mean}</code>, <code>--reports DIR</code>, <code>--flowsets DIR</code>; it adds to what <code>--out</code> holds</td>
+</tr>
+<tr>
+<td align="left"><code>run</code></td>
+<td align="left"><code>--solver PATH</code>, <code>-j N</code>, <code>--cap SECONDS</code> (3600), <code>--n-rb B</code> (default: the budget each model records), <code>--harqs 3</code>, <code>--max-h MS</code>, <code>--force</code>, <code>--shard K/N</code> (only the K-th of N disjoint shares of the models, so N machines sharing <code>--out</code> can split them)</td>
+</tr>
+<tr>
+<td align="left"><code>collect</code></td>
+<td align="left"><code>--csv FILE</code> (<code>analysis/csv/rq4_hyperperiod.csv</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>extend</code></td>
+<td align="left"><code>--targets ...</code>, <code>--stretch</code>: add targets to the flowsets already prepared</td>
+</tr>
+<tr>
+<td align="left"><code>control-prepare</code>, <code>compare</code></td>
+<td align="left">a sample of decided models solved again one at a time, and its times compared with the first run's; the paper's runs do not use it</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>--out DIR</code>, before the subcommand, is the model directory (<code>output/rq4_siren</code>
+in the paper's runs).</p>
+<hr>
+<h2 id="things-to-know-before-trusting-a-number">Things to know before trusting a number<a class="headerlink" href="#things-to-know-before-trusting-a-number" title="Link to this section">#</a></h2>
+<ul>
+<li><strong>Separate configuration failures from scheduling failures.</strong> A flowset that
+  fails Section V (<code>ko_infeasible</code>) never reached a scheduler. With the shipped
+  catalogue every application is feasible alone, so the ILP reports none.</li>
+<li><strong>Baselines select from the unscreened set</strong>, so they can schedule a flow
+  whose configuration misses its own deadline (it then misses on every packet),
+  or use more than <code>A^max</code> attempts (<code>ko_amax</code> in the paper's figures). See
+  <a href="../baselines/index.html#configuration-selection">Baselines</a>.</li>
+<li><strong><code>reliability_ok</code> is true by construction</strong> for every method: all derive
+  their attempts from the reliability target through the same Section V code.
+  It is a regression check, and would only discriminate if a method got its own
+  link adaptation.</li>
+<li><strong>ILP counts depend on the budgets.</strong> With a flowset budget, how many tables a
+  flowset has says as much about where the budget ran out as about the flowset;
+  a count is a property of the flowset only when the sweep completed. The
+  paper's sweep sets no flowset budget for this reason.</li>
+<li><strong>ILP times are wall-clock times on the machine that ran them.</strong> The
+  per-candidate cap is wall-clock time too, so a candidate near the cap may be
+  decided on one machine and not on another. The baselines are deterministic.</li>
+</ul>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="../output_formats.html">&larr; Output formats</a><a class="next" href="figures.html">Evaluation figures (plot_evaluation.py) &rarr;</a></div>
+<p class="source">Generated from <code>doc/analysis/index.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#data-flow">Data flow</a></li><li class="l2"><a href="#the-verdict-table">The verdict table</a></li><li class="l2"><a href="#collect_verdictspy">collect_verdicts.py</a></li><li class="l2"><a href="#paper-results-plot_paperpy">Paper results (plot_paper.py)</a></li><li class="l3"><a href="#ko_amax">ko_amax</a></li><li class="l2"><a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">RQ4: solving time against the hyperperiod (rq4_hyperperiod.py)</a></li><li class="l2"><a href="#things-to-know-before-trusting-a-number">Things to know before trusting a number</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

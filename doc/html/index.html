@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SIREN documentation &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html" class="current">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="siren-documentation">SIREN documentation<a class="headerlink" href="#siren-documentation" title="Link to this section">#</a></h1>
+<p>This repository holds the code and data of the paper <em>SIREN: Table-Driven
+Real-Time MAC Scheduler</em>. It studies <strong>table-driven real-time MAC scheduling
+for URLLC traffic in a private 5G gNB</strong>. Each periodic downlink flow is turned
+into real-time tasks, one per transport block (TB), and scheduled over a
+three-dimensional resource grid: <strong>resource blocks × HARQ processes × time</strong>.
+An offline time-indexed ILP, solved with Gurobi, computes a cyclic schedule
+table that provably meets every deadline over one hyperperiod. Four baseline
+schedulers (MUST, QoS-PF, RR and PF) run on the same inputs, and analysis
+scripts compare them.</p>
+<p>The paper calls the proposed scheduler <strong>SIREN</strong> (Scheduling with ILP for
+Real-time, Error-bounded New Radio). In the code, the reports and the CSVs it
+is the method <code>ilp</code>, solved by the program <code>siren</code>
+(<code>offline_phase/siren/</code>).</p>
+<p>The code is organised as a pipeline:</p>
+<pre><code class="language-text"> link simulation (bler/)          -&gt;  input/mcs_configurations.json  (BLER and RBs per TBS x MCS)
+ application catalogue (input/)   -&gt;  flowsets (offline_phase/generate_flowset)
+ flowset + MCS table              -&gt;  configurations per flow (offline_phase/planning, Section V)
+ configurations                   -&gt;  ILP schedule tables (offline_phase/siren)
+ flowset + MCS table              -&gt;  baseline schedule (baseline_algorithms/&lt;method&gt;)
+ all reports                      -&gt;  verdict tables, the paper's table, figures and macros (analysis/)
+</code></pre>
+<p><code>scripts/run_paper_experiment.sh</code> runs the paper's experiments, from the
+committed flowsets to the table, figures and macros.</p>
+<h2 id="where-to-start">Where to start<a class="headerlink" href="#where-to-start" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">If you want to…</th>
+<th align="left">Read</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">install the requirements and build</td>
+<td align="left"><a href="getting_started.html">Getting started</a></td>
+</tr>
+<tr>
+<td align="left">reproduce the paper's results</td>
+<td align="left">the run guide, <code>RUN_EXPERIMENTS.md</code> at the repository root</td>
+</tr>
+<tr>
+<td align="left">understand how the pieces fit and what they promise</td>
+<td align="left"><a href="architecture.html">Architecture</a></td>
+</tr>
+<tr>
+<td align="left">change a parameter (RBs, HARQs, timeouts…)</td>
+<td align="left"><a href="configuration.html">Configuration</a></td>
+</tr>
+<tr>
+<td align="left">change or understand the applications and the MCS table</td>
+<td align="left"><a href="input.html">Inputs</a></td>
+</tr>
+<tr>
+<td align="left">run the experiments: stages, workers, resume, shards</td>
+<td align="left"><a href="scripts.html">Scripts</a></td>
+</tr>
+<tr>
+<td align="left">build and run <code>siren</code>, and its Gurobi license</td>
+<td align="left"><a href="offline_phase/evaluation.html">ILP evaluation</a></td>
+</tr>
+<tr>
+<td align="left">know what a report file contains</td>
+<td align="left"><a href="output_formats.html">Output formats</a></td>
+</tr>
+<tr>
+<td align="left">turn reports into the paper's table, figures and macros</td>
+<td align="left"><a href="analysis/index.html">Analysis</a></td>
+</tr>
+<tr>
+<td align="left">regenerate the MCS table from link-level simulation</td>
+<td align="left"><a href="bler.html">BLER and MCS tables</a></td>
+</tr>
+<tr>
+<td align="left">know what is broken or easy to trip over</td>
+<td align="left"><a href="known_issues.html">Known issues</a></td>
+</tr>
+<tr>
+<td align="left">know who is behind the project and who funds it</td>
+<td align="left"><a href="about.html">About us</a></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="components">Components<a class="headerlink" href="#components" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Component</th>
+<th align="left">Directory</th>
+<th align="left">Page</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Flowset generator</td>
+<td align="left"><code>offline_phase/generate_flowset/</code></td>
+<td align="left"><a href="offline_phase/generate_flowset.html">Flowset generation</a></td>
+</tr>
+<tr>
+<td align="left">Configuration planner (Section V)</td>
+<td align="left"><code>offline_phase/planning/</code>, <code>common/</code></td>
+<td align="left"><a href="offline_phase/planning.html">Configuration planning</a></td>
+</tr>
+<tr>
+<td align="left">ILP scheduler, <code>siren</code> (Section VI)</td>
+<td align="left"><code>offline_phase/siren/</code></td>
+<td align="left"><a href="offline_phase/evaluation.html">ILP evaluation</a></td>
+</tr>
+<tr>
+<td align="left">Baseline schedulers</td>
+<td align="left"><code>baseline_algorithms/</code></td>
+<td align="left"><a href="baselines/index.html">Baselines</a></td>
+</tr>
+<tr>
+<td align="left">Verdicts, figures, RQ4</td>
+<td align="left"><code>analysis/</code></td>
+<td align="left"><a href="analysis/index.html">Analysis</a></td>
+</tr>
+<tr>
+<td align="left">Link-level BLER simulation</td>
+<td align="left"><code>bler/</code></td>
+<td align="left"><a href="bler.html">BLER and MCS tables</a></td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="conventions-used-in-these-pages">Conventions used in these pages<a class="headerlink" href="#conventions-used-in-these-pages" title="Link to this section">#</a></h2>
+<ul>
+<li><strong>Section and equation numbers</strong> (Section V, Eq. (4), …) refer to the
+  paper, which the code comments cite the same way.</li>
+<li><strong>Equations</strong> are written in plain text: <code>E^tb = 1 - (1 - E_i)^(1/N)</code> means
+  E superscript tb, <code>E_i</code> means E subscript i.</li>
+<li><strong>Paths</strong> are relative to the repository root unless stated otherwise.</li>
+</ul>
+<h2 id="building-these-pages">Building these pages<a class="headerlink" href="#building-these-pages" title="Link to this section">#</a></h2>
+<p>The Markdown in <code>doc/</code> is the source; <code>doc/html/</code> is generated from it:</p>
+<pre><code class="language-bash">python3 doc/build_docs.py          # rebuild doc/html/
+python3 doc/build_docs.py --check  # check every link, write nothing
+</code></pre>
+<p>The script needs the <code>markdown</code> Python package (<code>pip install markdown</code>). The
+sidebar order is <code>doc/nav.txt</code>. The script's own header documents what Markdown
+it accepts and how links are rewritten. Open <code>doc/html/index.html</code> in a
+browser: the pages work offline, straight from disk.</p>
+</article>
+<footer>
+<div class="pager"><a class="next" href="getting_started.html">Getting started &rarr;</a></div>
+<p class="source">Generated from <code>doc/index.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#where-to-start">Where to start</a></li><li class="l2"><a href="#components">Components</a></li><li class="l2"><a href="#conventions-used-in-these-pages">Conventions used in these pages</a></li><li class="l2"><a href="#building-these-pages">Building these pages</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

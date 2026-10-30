@@ -1,0 +1,12 @@
+Copyright (c) 2026 Alaf Nascimento, Samuel Tardieu, Philippe Martins and
+Laurent Pautet, LTCI, Télécom Paris, Institut Polytechnique de Paris.
+
+All rights reserved.
+
+No licence has been granted yet. You may read this code, but you may not copy,
+modify or redistribute it without the authors' written permission. If a
+licence is chosen later, this file will name it.
+
+Third-party files included in this repository keep their own licences, as
+stated in those files (for example the nlohmann/json headers, `json.hpp`,
+which are MIT).

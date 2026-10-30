@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configuration &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html" class="current">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Link to this section">#</a></h1>
+<p>Every run parameter is an <strong>environment variable</strong>. <code>scripts/parameters.sh</code>
+sets the defaults; every value there is written <code>${VAR:-default}</code>, so anything
+already exported wins. <code>scripts/run_paper_experiment.sh</code> sources it, after
+setting the paper's experiment settings itself (see
+<a href="scripts.html#run_paper_experimentsh">Scripts</a>).</p>
+<p><code>parameters.sh</code> is <em>sourced</em>, never executed. It derives every path from its
+own location, so the scripts run from any directory. The C++ binaries read
+the variables directly from the environment; running one by hand therefore
+needs them exported first:</p>
+<pre><code class="language-bash">set -a; source scripts/parameters.sh; set +a
+</code></pre>
+<p>The planner fails with a clear message when a required variable is missing.</p>
+<h2 id="radio-and-timing-model">Radio and timing model<a class="headerlink" href="#radio-and-timing-model" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Default</th>
+<th align="left">Unit</th>
+<th align="left">Read by</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>RBs</code></td>
+<td align="left"><code>135</code></td>
+<td align="left">RBs</td>
+<td align="left">baselines (<code>run_paper_experiment.sh</code> sets it to each pair's budget); passed to <code>siren</code> as <code>--n-rb</code></td>
+<td align="left"><code>B^max</code>, resource blocks per TTI (135 = 100 MHz FR1 carrier at 60 kHz SCS, TS 38.101-1)</td>
+</tr>
+<tr>
+<td align="left"><code>HARQs</code></td>
+<td align="left"><code>3</code></td>
+<td align="left">processes</td>
+<td align="left">baselines; passed to <code>siren</code> as <code>--m-harq</code></td>
+<td align="left"><code>M</code>, number of HARQ processes</td>
+</tr>
+<tr>
+<td align="left"><code>TTI</code></td>
+<td align="left"><code>0.00025</code></td>
+<td align="left"><strong>seconds</strong></td>
+<td align="left">planner, baselines; passed to <code>siren</code> as <code>--tti</code> in ms</td>
+<td align="left">transmission time interval (0.25 ms, 60 kHz SCS)</td>
+</tr>
+<tr>
+<td align="left"><code>FEEDBACK_PER_RET</code></td>
+<td align="left"><code>3 * TTI</code></td>
+<td align="left"><strong>seconds</strong></td>
+<td align="left">planner (required), baselines (default <code>3*TTI</code>)</td>
+<td align="left"><code>k1</code>, HARQ feedback delay per attempt; <code>t_tx = TTI + FEEDBACK_PER_RET</code></td>
+</tr>
+<tr>
+<td align="left"><code>UPPER_LAYER_DELAY</code></td>
+<td align="left"><code>0.004</code></td>
+<td align="left"><strong>seconds</strong></td>
+<td align="left">planner (written to its report as <code>t_up_ms</code>, which <code>siren</code> reads), baselines</td>
+<td align="left"><code>t_up</code>, the time a packet spends in the other layers (UE + gNB processing). It holds neither a HARQ process nor RBs, but counts towards the deadline: a packet is delivered <code>t_up</code> after its last TB ends</td>
+</tr>
+<tr>
+<td align="left"><code>A_MAX</code></td>
+<td align="left"><code>4</code></td>
+<td align="left">attempts</td>
+<td align="left">planner, baselines</td>
+<td align="left"><code>A^max</code>, the layer-wide cap on HARQ attempts (Eq. (4))</td>
+</tr>
+<tr>
+<td align="left"><code>RLC_HEADER_BYTES</code></td>
+<td align="left"><code>8</code></td>
+<td align="left">bytes</td>
+<td align="left">planner, baselines</td>
+<td align="left">RLC header carried by every segment (Eq. (2)); must be below the smallest TB size</td>
+</tr>
+<tr>
+<td align="left"><code>SINR_DB</code></td>
+<td align="left"><code>10</code></td>
+<td align="left">dB</td>
+<td align="left">planner, every baseline, the analysis scripts' reliability check</td>
+<td align="left">keeps only the MCS-table rows whose <code>sinr</code> equals this value, and fails if none do. <code>input/mcs_configurations.json</code> holds one SINR (10 dB)</td>
+</tr>
+</tbody>
+</table>
+</div><p>With the defaults one HARQ attempt costs <code>t_tx = 1 ms</code>, so a TB needing <code>A</code>
+attempts holds its HARQ process and RBs for <code>C = A</code> ms: 2 to 4 ms. It must end
+<code>t_up = 4</code> ms before its packet's deadline, so a configuration is admissible
+when <code>C + 4 &lt;= D</code>.</p>
+<p><code>parameters.sh</code> also exports <code>feedbackPerRet</code> and <code>upperLayerDelay</code>, copies of
+two variables above in camelCase; no code in the repository reads them.</p>
+<h2 id="inputs-and-outputs">Inputs and outputs<a class="headerlink" href="#inputs-and-outputs" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Default</th>
+<th align="left">Read by</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>MCS_CONFIG</code></td>
+<td align="left"><code>input/mcs_configurations.json</code></td>
+<td align="left">planner, baselines, <code>check_catalogue.py</code></td>
+<td align="left">link-layer table</td>
+</tr>
+<tr>
+<td align="left"><code>APP_DATABASE</code></td>
+<td align="left"><code>input/app_database.json</code></td>
+<td align="left"><code>check_catalogue.py</code></td>
+<td align="left">application catalogue</td>
+</tr>
+<tr>
+<td align="left"><code>OUTPUT_DIR</code></td>
+<td align="left"><code>output</code></td>
+<td align="left">every script</td>
+<td align="left">root of <code>flowsets/</code> (the inputs), <code>sweep/</code>, <code>rq4_siren/</code> and <code>paper_run/</code>. The analysis stage needs the default</td>
+</tr>
+<tr>
+<td align="left"><code>NUMBER_OF_APPSETS</code>, <code>APP_PER_SET</code></td>
+<td align="left"><code>1000</code>, <code>4</code></td>
+<td align="left"><code>check_catalogue.py</code></td>
+<td align="left">the flowsets the catalogue must allow (<code>C(30, 4)</code> combinations)</td>
+</tr>
+<tr>
+<td align="left"><code>FLOWSET_SEED</code></td>
+<td align="left"><code>20260922</code></td>
+<td align="left"><code>generate_flowset</code></td>
+<td align="left">shuffle seed; empty means a random seed (not reproducible). The committed flowsets were drawn with it</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>APP_DATABASE</code>, <code>MCS_CONFIG</code> and <code>OUTPUT_DIR</code> may be relative paths: they are
+resolved against the directory the run was launched from.
+<code>run_paper_experiment.sh</code> and <code>sweep_experiment.sh</code> move into <code>scripts/</code> before
+reading the parameters, so they record the launch directory in <code>LAUNCH_DIR</code>
+first; set <code>LAUNCH_DIR</code> yourself only to resolve relative paths against some
+other directory.</p>
+<p><code>parameters.sh</code> also defines variables that no shipped script reads:
+<code>METHODS</code> (its own default, <code>ilp rr pf qospf must</code>; <code>run_paper_experiment.sh</code>
+sets its own), <code>METHOD_VARIANTS</code>, <code>REUSE_FLOWSETS</code>, <code>CLEAN_OUTPUT</code>, and
+<code>ILP_OBJECTIVE</code>, <code>ILP_RB_PEAK_SEARCH</code>, <code>ILP_TIMEOUT</code>, which
+<code>run_paper_experiment.sh</code> overrides.</p>
+<h2 id="ilp">ILP<a class="headerlink" href="#ilp" title="Link to this section">#</a></h2>
+<p>What <code>run_paper_experiment.sh</code> passes to <code>siren</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Value in the paper's runs</th>
+<th align="left">Passed as</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>ILP_OBJECTIVE</code></td>
+<td align="left"><code>rb_peak</code> (fixed)</td>
+<td align="left"><code>--objective</code></td>
+<td align="left"><code>feasibility</code> (any table), <code>rb_peak</code> (minimise peak RB usage, Eqs. (13) and (14)) or <code>harq</code> (minimise HARQ processes used, Eqs. (11) and (12))</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_RB_PEAK_SEARCH</code></td>
+<td align="left"><code>bounded</code> (fixed)</td>
+<td align="left"><code>--rb-peak-search</code></td>
+<td align="left"><code>rb_peak</code> only. <code>bounded</code>: decide every candidate for feasibility, then minimise the peak over the schedulable ones in ascending mean-RB order, stopping at a provable bound. <code>full</code>: minimise the peak on every candidate</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_TIMEOUT</code></td>
+<td align="left"><code>0</code> (fixed)</td>
+<td align="left"><code>--timeout</code></td>
+<td align="left">seconds for one flowset's <strong>whole</strong> candidate sweep. <code>0</code> = no flowset budget</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_CANDIDATE_TIMEOUT</code></td>
+<td align="left"><code>60</code></td>
+<td align="left"><code>--candidate-timeout</code></td>
+<td align="left">seconds for <strong>one</strong> candidate. When it runs out that candidate is skipped and the sweep continues. <code>0</code> = no cap</td>
+</tr>
+</tbody>
+</table>
+</div><p>A candidate stopped by either budget is <em>undecided</em>, never "unschedulable":
+the analysis scores it <code>timeout</code>. Details in
+<a href="offline_phase/evaluation.html#two-time-budgets">ILP evaluation</a>.</p>
+<p><code>GUROBI_HOME</code> (Gurobi's <code>linux64</code> directory) is needed to build <code>siren</code>, and
+<code>GRB_LICENSE_FILE</code> tells Gurobi where the license file is when it is not in
+one of its default places (see
+<a href="offline_phase/evaluation.html#license">ILP evaluation</a>).</p>
+<h2 id="baseline-specific">Baseline-specific<a class="headerlink" href="#baseline-specific" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Default</th>
+<th align="left">Read by</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>ALPHA</code>, <code>BETA</code>, <code>GAMMA</code></td>
+<td align="left"><code>0.4</code>, <code>0.3</code>, <code>0.3</code></td>
+<td align="left"><code>qospf</code> (required)</td>
+<td align="left">weights of the delay-urgency, GBR-deficit and priority terms of the utility. The QoS-PF paper's "Balanced" setting; its others are Delay-Tuned <code>0.7/0.2/0.1</code> and Fairness-Tuned <code>0.2/0.2/0.6</code></td>
+</tr>
+<tr>
+<td align="left"><code>PF_EMA_LAMBDA</code></td>
+<td align="left"><code>0.95</code></td>
+<td align="left"><code>qospf</code> (required)</td>
+<td align="left">weight of the newest sample in QoS-PF's throughput average (Simu5G's <code>pfAlpha</code> default, as in the authors' code)</td>
+</tr>
+<tr>
+<td align="left"><code>PF_ALPHA</code></td>
+<td align="left"><code>0.01</code></td>
+<td align="left"><code>pf</code></td>
+<td align="left"><code>1/t_c</code> of PF's rate average: the weight of the newest per-TTI sample, so the memory is <code>1/PF_ALPHA</code> TTIs (100 TTIs = 25 ms). The binary's own default, if unset, is <code>0.1</code></td>
+</tr>
+<tr>
+<td align="left"><code>PF_INITIAL_THROUGHPUT</code></td>
+<td align="left"><code>1.0</code></td>
+<td align="left"><code>pf</code></td>
+<td align="left">initial average rate, bytes/ms</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="read-by-the-baselines-only">Read by the baselines only<a class="headerlink" href="#read-by-the-baselines-only" title="Link to this section">#</a></h2>
+<p>These are not in <code>parameters.sh</code> and no script of this repository sets them.
+The paper's runs use their defaults.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Default</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>EXEC_TIME_MODE</code></td>
+<td align="left"><code>wcet</code></td>
+<td align="left"><code>wcet</code>: every TB takes all <code>A_i</code> attempts. <code>sampled</code>: each TB takes the attempts it would really need, drawn from its BLER (see <a href="baselines/index.html#execution-time-model">Baselines</a>)</td>
+</tr>
+<tr>
+<td align="left"><code>EXEC_SAMPLE_SEED</code></td>
+<td align="left"><code>42</code></td>
+<td align="left">seed of the <code>sampled</code> draws; draws are keyed by job identity, so every method faces the same run for a given seed</td>
+</tr>
+<tr>
+<td align="left"><code>FLOW_CONFIG</code></td>
+<td align="left">unset</td>
+<td align="left">path to a JSON object imposing one configuration per application instead of the method's own choice (see <a href="baselines/index.html#configuration-selection">Baselines</a>)</td>
+</tr>
+</tbody>
+</table>
+</div>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="architecture.html">&larr; Architecture</a><a class="next" href="input.html">Inputs &rarr;</a></div>
+<p class="source">Generated from <code>doc/configuration.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#radio-and-timing-model">Radio and timing model</a></li><li class="l2"><a href="#inputs-and-outputs">Inputs and outputs</a></li><li class="l2"><a href="#ilp">ILP</a></li><li class="l2"><a href="#baseline-specific">Baseline-specific</a></li><li class="l2"><a href="#read-by-the-baselines-only">Read by the baselines only</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

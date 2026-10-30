@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html" class="current">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Link to this section">#</a></h1>
+<p>How the components fit together, what each kind of method promises, and the
+few contracts every component respects.</p>
+<h2 id="the-model-in-one-paragraph">The model in one paragraph<a class="headerlink" href="#the-model-in-one-paragraph" title="Link to this section">#</a></h2>
+<p>A gNB serves periodic downlink flows. A flow <code>F_i</code> sends one packet of <code>S_i</code>
+bytes every <code>T_i</code> ms, which must be delivered within <code>D_i</code> ms (<code>D_i &lt;= T_i</code>)
+with residual packet error at most <code>E_i</code>. Given a transmission configuration
+<code>K = (TB size, MCS)</code>, a packet is segmented into <code>N_i</code> transport blocks (TBs);
+each TB is a non-preemptive real-time task that holds <strong>one HARQ process</strong> and
+<strong><code>B_i</code> resource blocks</strong> in every TTI it runs, for a worst-case time
+<code>C_i = A_i t_tx</code> that covers its <code>A_i</code> HARQ attempts. After its last TB ends,
+a packet still spends the upper-layer delay <code>t_up</code> in the other layers; that
+time holds neither a HARQ process nor RBs, but counts towards the deadline, so
+a packet meets its deadline when its last TB ends by <code>D_i - t_up</code> after its
+release (fork/join). HARQ processes are <code>M</code> identical processors; resource
+blocks are a pool of <code>B^max</code> replenished every TTI. With synchronous releases
+and <code>D_i &lt;= T_i</code>, one hyperperiod <code>H = lcm(T_i)</code> is a feasibility interval, so
+a schedule for <code>[0, H)</code> can be replayed forever.</p>
+<h2 id="pipeline">Pipeline<a class="headerlink" href="#pipeline" title="Link to this section">#</a></h2>
+<pre><code class="language-text">                       input/app_database.json      input/mcs_configurations.json
+                                  |                     (from bler/, see bler.md)
+                                  v                               |
+                     offline_phase/generate_flowset               |
+                                  |                               |
+                     output/flowsets/flowset_NNNN.json            |
+                                  |                               |
+              +-------------------+--------------------+          |
+              |                                        |          |
+              v                                        v          v
+   offline_phase/planning  &lt;------------------------------------ MCS table
+   (Section V: P_i per flow)                  baseline_algorithms/&lt;method&gt;
+              |                               (pick one K per flow, simulate
+   planner_report.json                         one hyperperiod)
+              |                                        |
+              v                                        |
+   offline_phase/siren                      |
+   (Section VI: one ILP per candidate, Gurobi)         |
+              |                                        |
+              +------------------+---------------------+
+                                 v
+     output/sweep/rb&lt;B&gt;/reports/&lt;method&gt;/flowset_NNNN/combo_*.json   &lt;- the common artefact
+                                 |
+                                 v
+                    analysis/collect_verdicts.py
+                    (one verdict row per method x flowset)
+                                 |
+                                 v
+                    analysis/plot_paper.py -&gt; table, figures, LaTeX macros
+</code></pre>
+<p><code>scripts/run_paper_experiment.sh</code> drives all of it, once per RB budget
+<code>B^max</code>; see <a href="scripts.html">Scripts</a>.</p>
+<h2 id="configuration-selection-is-shared-section-v">Configuration selection is shared (Section V)<a class="headerlink" href="#configuration-selection-is-shared-section-v" title="Link to this section">#</a></h2>
+<p>Every component that turns a flow into transport blocks uses <strong>one</strong>
+implementation of Eqs. (2) to (6), the header-only <code>common/urllc_config.hpp</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Step</th>
+<th align="left">Equation</th>
+<th align="left">Function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">segments per packet: <code>N = ceil(S_i / (S_k - h))</code>, <code>h</code> the RLC header</td>
+<td align="left">(2)</td>
+<td align="left"><code>NumSegments</code></td>
+</tr>
+<tr>
+<td align="left">per-TB error target: <code>E^tb = 1 - (1 - E_i)^(1/N)</code></td>
+<td align="left">(3)</td>
+<td align="left"><code>PerTbErrorTarget</code></td>
+</tr>
+<tr>
+<td align="left">attempts: smallest <code>A</code> with <code>BLER^A &lt;= E^tb</code>, rejected if <code>A &gt; A^max</code></td>
+<td align="left">(4)</td>
+<td align="left"><code>RequiredAttempts</code></td>
+</tr>
+<tr>
+<td align="left">worst-case time: <code>C = A * t_tx</code> (<code>t_tx = TTI + k1</code>), rejected if <code>C + t_up &gt; D_i</code></td>
+<td align="left">(5)</td>
+<td align="left"><code>Wctt</code>, <code>EnumerateConfigurations</code></td>
+</tr>
+<tr>
+<td align="left">keep configurations no other one beats on all of (N, A, B)</td>
+<td align="left">(6)</td>
+<td align="left"><code>ParetoFilter</code></td>
+</tr>
+</tbody>
+</table>
+</div><p><code>ParetoFilter</code> also collapses configurations equal on all of <code>(N, A, B)</code> to
+the one with the lowest BLER, since the scheduler cannot tell them apart. The
+equations are pinned by a unit test against the paper's Table II
+(<code>make -C common test</code>).</p>
+<p>The two kinds of method use it differently, and this is deliberate:</p>
+<ul>
+<li>The <strong>planner</strong> (and therefore the ILP) applies both feasibility screens
+  (<code>A &lt;= A^max</code>, <code>C + t_up &lt;= D_i</code>). A flow with no surviving configuration
+  makes the flowset infeasible (<code>ko_infeasible</code>), proved before any scheduling.</li>
+<li>The <strong>baselines</strong> call it with <code>enforceLimits = false</code>: the deadline screen
+  is part of the contribution being evaluated, so a method compared against it
+  does not get it. Each baseline picks, among the configurations that fit the
+  cell (<code>B &lt;= B^max</code>), the one with the fewest segments, then fewest attempts,
+  then fewest RBs, then the higher MCS. <code>A^max</code> is a limit of the MAC layer,
+  not of the analysis, so only configurations within it compete whenever one
+  fits the cell; the rule falls back to more attempts only when none does,
+  and such a run is counted outside the model (<code>ko_amax</code>). A flow whose every
+  configuration violates its deadline is scheduled anyway, and misses.</li>
+</ul>
+<p><code>scripts/check_catalogue.py</code> re-implements the same arithmetic in Python to
+validate the catalogue without building anything.</p>
+<h2 id="what-a-verdict-means-per-method">What a verdict means, per method<a class="headerlink" href="#what-a-verdict-means-per-method" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left">How it decides</th>
+<th align="left">What an <code>ok</code> is worth</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><strong>SIREN (<code>ilp</code>, solved by <code>siren</code>)</strong></td>
+<td align="left">Enumerates every combination of one configuration per flow (<code>∏ P_i</code> candidates) and solves a time-indexed ILP for each (it does not stop at the first schedulable one) until all are decided or the flowset's budget runs out; every schedulable candidate yields a table</td>
+<td align="left">a <strong>proof</strong> that a table meeting every deadline exists, valid for every run</td>
+</tr>
+<tr>
+<td align="left"><strong>Baselines</strong> (<code>rr</code>, <code>pf</code>, <code>qospf</code>, <code>must</code>)</td>
+<td align="left">Simulate one hyperperiod of an online, work-conserving policy on the configuration they picked</td>
+<td align="left">evidence about <strong>the run that was simulated</strong></td>
+</tr>
+</tbody>
+</table>
+</div><p>A table-driven schedule is immune to early completions: start times are fixed,
+so a TB that decodes on its first attempt just leaves its HARQ process idle.
+Online work-conserving policies are not: finishing early lets another job start,
+which can then block a more urgent one. The baselines' <code>EXEC_TIME_MODE=sampled</code>
+exists to measure exactly that; see
+<a href="baselines/index.html#execution-time-model">Baselines</a>.</p>
+<h2 id="the-common-artefact-combo_json">The common artefact: <code>combo_*.json</code><a class="headerlink" href="#the-common-artefact-combo_json" title="Link to this section">#</a></h2>
+<p>Every method writes the same <strong>dispatch table</strong> format, so one plotting path
+and one verdict reducer serve all of them:</p>
+<ul>
+<li>the ILP writes one <code>combo_&lt;index&gt;.json</code> per schedulable candidate, <code>&lt;index&gt;</code>
+  being the candidate's 1-based position in its enumeration;</li>
+<li>every baseline writes exactly one, <code>combo_0000.json</code>, even when the flowset is
+  infeasible for it (then with an empty table and <code>schedulable: false</code>).</li>
+</ul>
+<p>Each entry places one TB: application, segment index (<code>subtask</code>), HARQ process
+(<code>machine</code>), release / start / end / absolute deadline, and RBs held. <code>end</code> is
+when the TB releases its process and RBs; the packet is delivered
+<code>config.t_up_tti</code> later, and that delivery is what is compared with the
+deadline. Full schema in <a href="output_formats.html">Output formats</a>.</p>
+<h2 id="time-units">Time units<a class="headerlink" href="#time-units" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Where</th>
+<th align="left">Unit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>TTI</code>, <code>UPPER_LAYER_DELAY</code>, <code>FEEDBACK_PER_RET</code> in the environment</td>
+<td align="left"><strong>seconds</strong> (the binaries read them so)</td>
+</tr>
+<tr>
+<td align="left">catalogue <code>period</code>, <code>deadline</code>; planner <code>c</code>; every report field ending in <code>_ms</code></td>
+<td align="left"><strong>milliseconds</strong></td>
+</tr>
+<tr>
+<td align="left">report fields ending in <code>_tti</code>; the ILP's internal time</td>
+<td align="left"><strong>TTIs</strong> (0.25 ms by default)</td>
+</tr>
+</tbody>
+</table>
+</div><p>The ILP schedules on the TTI grid. The simulated baselines record dispatch
+events in <strong>whole milliseconds</strong> (<code>DispatchEntry</code> stores integers) and refuse,
+rather than truncate, a time that is not a whole millisecond. That is safe
+because the catalogue's periods, deadlines, every retained <code>C_i</code> and <code>t_up</code> are
+whole milliseconds, which <code>check_catalogue.py</code> enforces.</p>
+<h2 id="comparing-per-configuration">Comparing per configuration<a class="headerlink" href="#comparing-per-configuration" title="Link to this section">#</a></h2>
+<p>A baseline normally answers for the one configuration it picked; the ILP
+decides many. To compare on the same denominator, the environment variable
+<code>FLOW_CONFIG</code> makes any baseline schedule a configuration imposed from outside
+(one <code>urllc::Candidate</code> per application, as JSON). See
+<a href="baselines/index.html#configuration-selection">Baselines</a>.</p>
+<h2 id="directory-map">Directory map<a class="headerlink" href="#directory-map" title="Link to this section">#</a></h2>
+<pre><code class="language-text">./
+├── common/                 urllc_config.hpp (Section V) and its unit test
+├── input/                  application catalogue, MCS table
+├── offline_phase/
+│   ├── generate_flowset/   catalogue -&gt; flowsets
+│   ├── planning/           flowset -&gt; planner_report.json (Section V)
+│   └── siren/   planner_report.json -&gt; schedule tables (Section VI), Gurobi
+├── baseline_algorithms/    rr, pf, qospf, must + common/
+├── analysis/               verdict reduction, paper table, figures and macros, RQ4
+├── results/                will hold the paper's results
+├── bler/                   link-level BLER simulation -&gt; MCS table
+├── scripts/                build, the paper's experiments, catalogue check
+├── output/                 flowsets (tracked) and run outputs (ignored by git)
+└── doc/                    this documentation; doc/html/ is generated
+</code></pre>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="getting_started.html">&larr; Getting started</a><a class="next" href="configuration.html">Configuration &rarr;</a></div>
+<p class="source">Generated from <code>doc/architecture.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#the-model-in-one-paragraph">The model in one paragraph</a></li><li class="l2"><a href="#pipeline">Pipeline</a></li><li class="l2"><a href="#configuration-selection-is-shared-section-v">Configuration selection is shared (Section V)</a></li><li class="l2"><a href="#what-a-verdict-means-per-method">What a verdict means, per method</a></li><li class="l2"><a href="#the-common-artefact-combo_json">The common artefact: combo_*.json</a></li><li class="l2"><a href="#time-units">Time units</a></li><li class="l2"><a href="#comparing-per-configuration">Comparing per configuration</a></li><li class="l2"><a href="#directory-map">Directory map</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baselines &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="index.html" class="current">Baselines</a><ul><li><a href="rr.html">Round-robin (rr)</a></li><li><a href="pf.html">Proportional fair (pf)</a></li><li><a href="qospf.html">QoS-PF (qospf)</a></li><li><a href="must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="baselines">Baselines<a class="headerlink" href="#baselines" title="Link to this section">#</a></h1>
+<p><code>baseline_algorithms/</code> holds the four schedulers SIREN (the method <code>ilp</code>) is
+compared against in the paper.
+They share one command line, one environment, one configuration-selection rule,
+one transmission-time model and one output format, so that differences between
+them come from the scheduling policy.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Method</th>
+<th align="left">Policy</th>
+<th align="left">Kind</th>
+<th align="left">Page</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>rr</code></td>
+<td align="left">round-robin over flows</td>
+<td align="left">channel- and deadline-agnostic</td>
+<td align="left"><a href="rr.html">Round-robin</a></td>
+</tr>
+<tr>
+<td align="left"><code>pf</code></td>
+<td align="left">proportional fair: achievable rate / average rate</td>
+<td align="left">throughput fairness</td>
+<td align="left"><a href="pf.html">Proportional fair</a></td>
+</tr>
+<tr>
+<td align="left"><code>qospf</code></td>
+<td align="left">QoS-aware PF (Seliem et al., MSWiM 2025): delay, GBR deficit and 5QI priority over average rate</td>
+<td align="left">QoS-weighted fairness</td>
+<td align="left"><a href="qospf.html">QoS-PF</a></td>
+</tr>
+<tr>
+<td align="left"><code>must</code></td>
+<td align="left">MUST (Khorov et al., TMC 2021): deadline-ordered look-ahead with drops</td>
+<td align="left">URLLC, deadline-aware</td>
+<td align="left"><a href="must.html">MUST</a></td>
+</tr>
+</tbody>
+</table>
+</div><p>The default <code>METHODS</code> in <code>parameters.sh</code> runs <code>rr pf qospf must</code> alongside
+the ILP.</p>
+<h2 id="build">Build<a class="headerlink" href="#build" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">cd baseline_algorithms
+make            # all four, each to &lt;name&gt;/&lt;name&gt;
+make must       # one of them
+make clean
+</code></pre>
+<p>One Makefile compiles every <code>&lt;name&gt;/main.cpp</code> with the shared code in
+<code>common/</code> (<code>scheduler.cpp</code>, <code>qos_data.cc</code>) and the Section V header
+<code>../common/urllc_config.hpp</code>, using <code>g++ -std=c++17</code>. Every source tree
+bundles its own copy of <code>nlohmann/json</code>.</p>
+<h2 id="command-line">Command line<a class="headerlink" href="#command-line" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">set -a; source ../scripts/parameters.sh; set +a
+./must/must ../output/flowsets/flowset_0001.json ../input/mcs_configurations.json out.json
+</code></pre>
+<p><code>&lt;method&gt; &lt;flowset.json&gt; &lt;mcs_configurations.json&gt; [output.json]</code> for all
+four. Without the third argument:</p>
+<ul>
+<li><code>rr</code>, <code>pf</code>, <code>must</code> write <code>./&lt;flowset stem&gt;_&lt;method&gt;.json</code> in the current
+  directory;</li>
+<li><code>qospf</code> prints the report to stdout (but still writes an infeasibility
+  verdict to <code>./&lt;flowset stem&gt;_qospf.json</code>).</li>
+</ul>
+<p><code>run_paper_experiment.sh</code> always passes <code>reports/&lt;method&gt;/&lt;flowset&gt;/combo_0000.json</code>, and sets <code>RBs</code> to the pair's budget.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Exit status</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>0</code></td>
+<td align="left">a report was written: a schedule, or an infeasibility verdict</td>
+</tr>
+<tr>
+<td align="left"><code>1</code></td>
+<td align="left">an error (missing variable, unreadable input, internal check), and, for <code>qospf</code>, a usage error</td>
+</tr>
+<tr>
+<td align="left"><code>2</code></td>
+<td align="left">usage error (<code>rr</code>, <code>pf</code>, <code>must</code>)</td>
+</tr>
+</tbody>
+</table>
+</div><p>The <code>combo_index</code> field is taken from the integer in the flowset's file name
+(<code>flowset_0042.json</code> → 42).</p>
+<h2 id="environment">Environment<a class="headerlink" href="#environment" title="Link to this section">#</a></h2>
+<p>Every baseline reads, through <code>read_runtime_config()</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Variable</th>
+<th align="left">Required</th>
+<th align="left">Default if unset</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>TTI</code>, <code>RBs</code>, <code>HARQs</code>, <code>UPPER_LAYER_DELAY</code></td>
+<td align="left">yes</td>
+<td align="left">none</td>
+</tr>
+<tr>
+<td align="left"><code>FEEDBACK_PER_RET</code></td>
+<td align="left">no</td>
+<td align="left"><code>3 × TTI</code></td>
+</tr>
+<tr>
+<td align="left"><code>SINR_DB</code></td>
+<td align="left">no</td>
+<td align="left"><code>10</code> (selects the MCS tables at this SINR)</td>
+</tr>
+<tr>
+<td align="left"><code>RLC_HEADER_BYTES</code></td>
+<td align="left">no</td>
+<td align="left"><code>8</code></td>
+</tr>
+<tr>
+<td align="left"><code>A_MAX</code></td>
+<td align="left">no</td>
+<td align="left"><code>4</code></td>
+</tr>
+<tr>
+<td align="left"><code>EXEC_TIME_MODE</code>, <code>EXEC_SAMPLE_SEED</code></td>
+<td align="left">no</td>
+<td align="left"><code>wcet</code>, <code>42</code></td>
+</tr>
+<tr>
+<td align="left"><code>PF_ALPHA</code>, <code>PF_INITIAL_THROUGHPUT</code></td>
+<td align="left">no</td>
+<td align="left"><code>0.1</code>, <code>1.0</code> (used by <code>pf</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>FLOW_CONFIG</code></td>
+<td align="left">no</td>
+<td align="left">unset</td>
+</tr>
+</tbody>
+</table>
+</div><p>plus <code>ALPHA</code>, <code>BETA</code>, <code>GAMMA</code>, <code>PF_EMA_LAMBDA</code> (required by <code>qospf</code>). Meanings
+in <a href="../configuration.html">Configuration</a>.</p>
+<h2 id="configuration-selection">Configuration selection<a class="headerlink" href="#configuration-selection" title="Link to this section">#</a></h2>
+<p>Every baseline picks <strong>one</strong> configuration per flow through
+<code>select_flow_config()</code> (<code>common/scheduler.cpp</code>).</p>
+<ol>
+<li>Run Section V (<code>urllc::SelectConfigurations</code>) with <code>enforceLimits = false</code>:
+   Eqs. (2), (3) and (4) are applied, but the <code>C + t_up &lt;= D</code> check is
+   <strong>not</strong>: that screen is part of the contribution under evaluation, so a
+   baseline does not get it. Attempts are not capped at this step either. Then
+   Pareto-filter.</li>
+<li>Discard configurations needing more RBs than the cell has (<code>B &gt; B^max</code>):
+   no policy can transmit them.</li>
+<li>Keep only the configurations within <code>A^max</code> attempts, if any is left:
+   <code>A^max</code> is a limit of the MAC layer (Section IV-B), not of the analysis.</li>
+<li>Pick the one with the fewest segments, then the fewest attempts, then the
+   fewest RBs, then the <strong>higher</strong> MCS.</li>
+</ol>
+<p>If nothing survives step 2, the flowset is infeasible for this baseline: it
+writes an infeasibility report (<code>schedulable: false</code>, <code>infeasible_flows</code>, empty
+table) and exits 0.</p>
+<p>Consequences of selecting from the unscreened set:</p>
+<ul>
+<li>A flow whose every configuration has <code>C + t_up &gt; D</code> is scheduled anyway and
+  misses its deadline on every packet, where the ILP proves the flowset
+  infeasible beforehand.</li>
+<li>When no configuration within <code>A^max</code> fits the cell, step 3 keeps them all
+  and the baseline falls back to <strong>more than <code>A^max</code> attempts</strong>. On the current
+  catalogue and MCS table this never happens: every application has a
+  configuration within <code>A^max</code> that fits even 51 RBs.
+  <code>analysis/plot_paper.py</code> reclassifies a baseline run whose
+  largest attempt count exceeds <code>A_MAX</code> as <code>ko_amax</code> ("needs <code>A &gt; A^max</code>",
+  outside the model); the raw verdict CSVs keep the simulated verdict. See
+  <a href="../analysis/index.html#ko_amax">Analysis</a>.</li>
+</ul>
+<p><strong>Imposed configurations.</strong> If <code>FLOW_CONFIG</code> names a JSON file, steps 1 to 4 are
+replaced by the configuration it gives for each application:</p>
+<pre><code class="language-json">{ &quot;ProcessControl_T60&quot;: { &quot;tbs&quot;: 129, &quot;m&quot;: 0, &quot;segments&quot;: 3, &quot;attempts&quot;: 3,
+                          &quot;rbs&quot;: 29, &quot;etb_target&quot;: 3.33e-06, &quot;bler&quot;: 0.00673,
+                          &quot;wctt_ms&quot;: 3.0 } }
+</code></pre>
+<p>Every application of the flowset must be present (otherwise the run fails
+rather than silently falling back). A configuration wider than the cell makes
+the flowset infeasible as above. The paper's runs do not use it.</p>
+<h2 id="job-model-and-timing">Job model and timing<a class="headerlink" href="#job-model-and-timing" title="Link to this section">#</a></h2>
+<ul>
+<li>A flow releases a packet at <code>0, T, 2T, …</code> inside one hyperperiod
+  <code>H = lcm(T_i)</code>; each release makes <code>N</code> jobs (one per segment) ready at once,
+  all with the packet's absolute deadline <code>release + D</code>.</li>
+<li>A job holds <strong>one HARQ process and <code>B</code> RBs for its whole duration</strong>
+  <code>C = A × (FEEDBACK_PER_RET + TTI)</code>, the same worst-case model as the ILP's
+  <code>C</code>. The upper-layer delay <code>t_up</code> (<code>UPPER_LAYER_DELAY</code>) follows a packet's
+  last job and holds neither: a packet is late when its last job's end plus
+  <code>t_up</code> exceeds its deadline (reports carry <code>config.t_up_ms</code> and
+  <code>config.t_up_tti</code>). The deadline-aware policies plan against the deadline
+  less <code>t_up</code> (MUST's lifetime, QoS-PF's delay urgency).</li>
+<li>Scheduling is <strong>non-preemptive</strong> and <strong>work-conserving</strong>: whenever a process
+  is free, the policy picks among ready jobs whose <code>B</code> fits in the RBs still
+  free; a job that does not fit is skipped in favour of one that does.
+  Free processes are taken lowest index first.</li>
+<li>Jobs start on TTI boundaries. Times are recorded in whole milliseconds and a
+  non-integer time is refused rather than truncated (see
+  <a href="../architecture.html#time-units">Architecture</a>).</li>
+<li>A job that misses its deadline still runs to completion (except in <code>must</code>,
+  which never starts a TB that cannot end in time and discards the packet
+  when its lifetime expires). Jobs may finish after <code>H</code>. Exactly one
+  hyperperiod is simulated.</li>
+</ul>
+<h3 id="execution-time-model">Execution-time model<a class="headerlink" href="#execution-time-model" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"><code>EXEC_TIME_MODE</code></th>
+<th align="left">Attempts per TB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>wcet</code> (default)</td>
+<td align="left">always <code>A</code>, the worst case the configuration budgets for</td>
+</tr>
+<tr>
+<td align="left"><code>sampled</code></td>
+<td align="left">the attempts a real run would need: each attempt fails independently with the row's BLER, capped at <code>A</code></td>
+</tr>
+</tbody>
+</table>
+</div><p><code>sampled</code> exists because non-preemptive work-conserving scheduling is not
+sustainable with respect to shorter execution: a TB that decodes early can let
+another job start and block a more urgent one. Draws are seeded by <strong>job
+identity</strong> (flow, release, segment) XOR <code>EXEC_SAMPLE_SEED</code>, not by draw order,
+so every method faces the same run for a given seed. The paper's runs use
+<code>wcet</code>.</p>
+<h2 id="output">Output<a class="headerlink" href="#output" title="Link to this section">#</a></h2>
+<p>A combo-style report, the same format as the ILP's dispatch tables (see
+<a href="../output_formats.html#dispatch-table-combo_json">Output formats</a>). <code>config.objective</code>
+names the method (<code>round_robin</code>, <code>proportional_fair</code>, <code>qos_pf</code>, <code>must</code>).
+<code>must</code> adds fields of its own, listed on its page.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="../offline_phase/evaluation.html">&larr; ILP evaluation (siren)</a><a class="next" href="rr.html">Round-robin (rr) &rarr;</a></div>
+<p class="source">Generated from <code>doc/baselines/index.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#build">Build</a></li><li class="l2"><a href="#command-line">Command line</a></li><li class="l2"><a href="#environment">Environment</a></li><li class="l2"><a href="#configuration-selection">Configuration selection</a></li><li class="l2"><a href="#job-model-and-timing">Job model and timing</a></li><li class="l3"><a href="#execution-time-model">Execution-time model</a></li><li class="l2"><a href="#output">Output</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scripts &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html" class="current">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="scripts">Scripts<a class="headerlink" href="#scripts" title="Link to this section">#</a></h1>
+<p><code>scripts/</code> builds the code and runs the paper's experiments. Settings come
+from the environment (see <a href="configuration.html">Configuration</a>); every script
+resolves its paths from its own location, so it can be launched from anywhere.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Script</th>
+<th align="left">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>install.sh</code></td>
+<td align="left">build every C++ component, <code>siren</code> included (installs nlohmann/json if missing)</td>
+</tr>
+<tr>
+<td align="left"><code>install_conda.sh</code></td>
+<td align="left">the same inside an activated conda environment</td>
+</tr>
+<tr>
+<td align="left"><code>parameters.sh</code></td>
+<td align="left">defaults for every setting; sourced by the others, never executed</td>
+</tr>
+<tr>
+<td align="left"><code>run_paper_experiment.sh</code></td>
+<td align="left">the paper's experiments: build, RB-budget sweep, RQ4, then the table, figures and macros</td>
+</tr>
+<tr>
+<td align="left"><code>sweep_experiment.sh</code></td>
+<td align="left">its <code>--collect</code> mode reduces the sweep's reports to CSVs; <code>run_paper_experiment.sh</code> calls it</td>
+</tr>
+<tr>
+<td align="left"><code>check_catalogue.py</code></td>
+<td align="left">validate the application catalogue (see <a href="input.html#checking-the-catalogue">Inputs</a>)</td>
+</tr>
+</tbody>
+</table>
+</div><hr>
+<h2 id="installsh-and-install_condash"><code>install.sh</code> and <code>install_conda.sh</code><a class="headerlink" href="#installsh-and-install_condash" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">export GUROBI_HOME=/path/to/gurobi1301/linux64
+./install.sh            # or ./install_conda.sh inside an activated conda environment
+</code></pre>
+<ol>
+<li>If CMake cannot find the <code>nlohmann_json</code> package that <code>siren</code>'s build asks
+   for (<code>find_package(nlohmann_json 3.2.0)</code>, tried in a throwaway project),
+   installs <code>nlohmann-json3-dev</code> with <code>sudo apt-get</code> (<code>conda-forge::nlohmann_json</code>
+   in the conda variant). Every other component bundles its own <code>json.hpp</code>.</li>
+<li>Runs <code>make clean &amp;&amp; make -j$(nproc)</code> in: <code>offline_phase/generate_flowset</code>,
+   <code>offline_phase/planning</code>, <code>offline_phase/siren</code>, and
+   <code>baseline_algorithms/</code> (one Makefile for the four baselines, each built to
+   <code>&lt;name&gt;/&lt;name&gt;</code>).</li>
+</ol>
+<p>It stops at the first failure (<code>set -e</code>). Neither script installs Gurobi:
+<code>siren</code>'s build needs <code>GUROBI_HOME</code> (see
+<a href="offline_phase/evaluation.html#build">ILP evaluation</a>). It does not touch
+<code>output/</code>: the <code>make clean</code> of each component removes build outputs only. It
+does not build the unit test of <code>common/</code> (<code>make -C common test</code>).</p>
+<hr>
+<h2 id="parameterssh"><code>parameters.sh</code><a class="headerlink" href="#parameterssh" title="Link to this section">#</a></h2>
+<p>Sourced by the other scripts. Defines the paths (all derived from the
+repository root, <code>OUTPUT_DIR</code> overridable) and every run parameter with an
+overridable default. The full table is in <a href="configuration.html">Configuration</a>.</p>
+<p>It makes <code>APP_DATABASE</code>, <code>MCS_CONFIG</code> and <code>OUTPUT_DIR</code> absolute, resolving a
+relative value against <code>$LAUNCH_DIR</code>, or against the current directory when
+<code>LAUNCH_DIR</code> is unset. Every binary runs from its own directory, so a relative
+path left as it is would point somewhere else for each of them.</p>
+<hr>
+<h2 id="run_paper_experimentsh"><code>run_paper_experiment.sh</code><a class="headerlink" href="#run_paper_experimentsh" title="Link to this section">#</a></h2>
+<p>Everything the paper's Performance Evaluation reports, in one run: SIREN's
+ILP solved by <code>siren</code> and the four baselines MUST, QoS-PF, RR and PF, on the
+1000 committed flowsets of <code>output/flowsets/</code>. Its header is its usage
+(<code>./run_paper_experiment.sh --help</code>).</p>
+<pre><code class="language-bash">./run_paper_experiment.sh                     # every stage, one worker per physical core
+./run_paper_experiment.sh -j 8                # 8 workers
+./run_paper_experiment.sh --stages &quot;sweep&quot;    # some stages only (build sweep rq4 analysis)
+./run_paper_experiment.sh --flowsets FILE     # only the flowsets FILE lists (one name per line)
+./run_paper_experiment.sh -j 8 --shard 1/2    # machine 1 of 2 sharing this tree on one disk
+./run_paper_experiment.sh -j 8 --shard 2/2    # machine 2
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Stage</th>
+<th align="left">What it does</th>
+<th align="left">Writes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>build</code></td>
+<td align="left"><code>make</code> in <code>offline_phase/planning</code>, <code>baseline_algorithms</code> and <code>offline_phase/siren</code>; stops if <code>GUROBI_HOME</code> is not set</td>
+<td align="left">the binaries; <code>output/paper_run/build_*.log</code></td>
+</tr>
+<tr>
+<td align="left"><code>sweep</code></td>
+<td align="left">every (<code>B^max</code>, flowset) pair at 51, 79, 107 and 135 RBs: the planner and <code>siren</code>, then each baseline</td>
+<td align="left"><code>output/sweep/rb&lt;B&gt;/reports/&lt;method&gt;/&lt;flowset&gt;/</code>, <code>logs/&lt;method&gt;/&lt;flowset&gt;.log</code>, <code>.parallel/status/&lt;flowset&gt;</code></td>
+</tr>
+<tr>
+<td align="left"><code>rq4</code></td>
+<td align="left"><code>analysis/rq4_hyperperiod.py</code>: <code>prepare</code> (100 flowsets that <code>siren</code> schedules at 135 RBs, their minimum-peak tuple, periods stretched to the target hyperperiods), then <code>run --solver offline_phase/siren/siren</code>, 1 h per model</td>
+<td align="left"><code>output/rq4_siren/</code></td>
+</tr>
+<tr>
+<td align="left"><code>analysis</code></td>
+<td align="left">from empty CSVs: <code>sweep_experiment.sh --collect</code>, <code>rq4_hyperperiod.py collect</code>, <code>plot_paper.py --derive</code>, <code>plot_paper.py</code></td>
+<td align="left"><code>analysis/csv/</code>, <code>analysis/figures/paper/</code></td>
+</tr>
+</tbody>
+</table>
+</div><p><strong>Settings.</strong> The script sets the paper's settings itself:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Setting</th>
+<th align="left">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>RBS</code></td>
+<td align="left"><code>51 79 107 135</code></td>
+</tr>
+<tr>
+<td align="left"><code>HARQs</code> (<code>M</code>)</td>
+<td align="left"><code>3</code></td>
+</tr>
+<tr>
+<td align="left"><code>METHODS</code></td>
+<td align="left"><code>ilp must qospf rr pf</code> (<code>ilp</code>: SIREN, solved by <code>siren</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_OBJECTIVE</code>, <code>ILP_RB_PEAK_SEARCH</code></td>
+<td align="left"><code>rb_peak</code>, <code>bounded</code> (not overridable)</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_TIMEOUT</code></td>
+<td align="left"><code>0</code>: no budget per flowset (not overridable)</td>
+</tr>
+<tr>
+<td align="left"><code>ILP_CANDIDATE_TIMEOUT</code></td>
+<td align="left"><code>60</code> s per ILP tuple (wall-clock)</td>
+</tr>
+<tr>
+<td align="left">Gurobi threads</td>
+<td align="left">one, set in <code>siren</code></td>
+</tr>
+<tr>
+<td align="left"><code>RQ4_SAMPLE</code>, <code>RQ4_CAP</code></td>
+<td align="left"><code>100</code> flowsets, <code>3600</code> s per model, at 135 RBs (<code>RQ4_RB</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>RQ4_SPLIT_H</code>, <code>RQ4_JOBS_LARGE</code></td>
+<td align="left">RQ4 solves the models up to 8400 ms with <code>-j</code> workers, then the larger ones <code>12</code> at a time (they need several GB each)</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>RBS</code>, <code>HARQs</code>, <code>METHODS</code>, <code>ILP_CANDIDATE_TIMEOUT</code> and the <code>RQ4_*</code> values can
+be overridden in the environment, for tests only. The rest comes from
+<code>parameters.sh</code> (TTI, <code>t_up</code>, <code>A^max</code>, the QoS-PF and PF parameters, …).</p>
+<p><strong>Workers.</strong> <code>-j</code> is the number of workers (default: one per physical core,
+as <code>lscpu</code> reports them; no more is accepted). Each worker is pinned
+(<code>taskset</code>) to its own physical core, on its first hardware thread, and runs
+one pair at a time, the ILP and every baseline of it, so no two solvers share
+a core and the 60 s cap means the same everywhere. Each <code>siren</code> process takes
+one Gurobi license token: with a license limited to <code>W</code> processes at once,
+the <code>-j</code> of all machines together must stay within <code>W</code>.</p>
+<p><strong>Order.</strong> Pairs run flowset by flowset in the order of their numbers, every
+budget of a flowset before the next flowset, so that at any time the flowsets
+finished at every budget are, up to the pairs in flight, the lowest-numbered
+ones.</p>
+<p><strong>Resume.</strong> A pair is done when <code>output/sweep/rb&lt;B&gt;/.parallel/status/&lt;flowset&gt;</code>
+says <code>ok</code>; relaunching with the same arguments runs only the rest, and RQ4
+skips the models that have a result. A pair that failed says <code>fail &lt;methods&gt;</code>
+and is run again at the next launch. The sweep stage stops with an error if
+some pair is not <code>ok</code> at its end.</p>
+<p><strong>Shards.</strong> With <code>--shard K/N</code>, the K-th machine takes the flowsets whose
+position in the list is K modulo N. Every machine must see the same tree (a
+shared disk). Shard 1 builds (the others wait for it), runs RQ4's <code>prepare</code>
+once every shard's sweep is done, and, once every shard's RQ4 share is done,
+the analysis; every shard solves its share of RQ4's models.</p>
+<p><strong>Checks.</strong> Every stage refuses a tree whose ILP reports do not come from
+<code>siren</code> (<code>config.solver</code> not <code>gurobi ...</code>) or whose RQ4 results were not solved
+by <code>siren</code>: use another <code>OUTPUT_DIR</code> for runs of another solver. The analysis
+stage needs the default <code>OUTPUT_DIR</code> (<code>output/</code>), since <code>plot_paper.py</code> reads
+<code>output/sweep/</code>.</p>
+<p><strong>Record.</strong> <code>output/paper_run/</code> holds, per machine, <code>manifest_&lt;host&gt;.txt</code>
+(start time, CPU model and core count, shard and workers, stages, flowsets,
+settings, the git commit) and <code>pairs_&lt;host&gt;.tsv</code> (one line per pair: budget,
+flowset, start and end as Unix times, status), plus the logs of the build,
+RQ4 and analysis stages.</p>
+<p>A long run is best detached:
+<code>nohup ./run_paper_experiment.sh ... &gt;run.log 2&gt;&amp;1 &amp;</code>.</p>
+<hr>
+<h2 id="sweep_experimentsh-collect"><code>sweep_experiment.sh --collect</code><a class="headerlink" href="#sweep_experimentsh-collect" title="Link to this section">#</a></h2>
+<pre><code class="language-bash">./sweep_experiment.sh --collect          # every budget of RBS (default 51 79 107 135)
+./sweep_experiment.sh --collect --merge  # update the CSVs instead of rewriting them
+</code></pre>
+<p>Runs <code>analysis/collect_verdicts.py</code> on every budget that has reports under
+<code>$OUTPUT_DIR/sweep/rb&lt;B&gt;/reports</code>, writing <code>analysis/csv/output_rb&lt;B&gt;.csv</code> in
+the repository, and stacks them (with a leading <code>rb</code> column) into
+<code>analysis/csv/output_sweep.csv</code>, the input of <code>analysis/plot_paper.py</code>. It
+always writes into the repository's <code>analysis/csv/</code>, whatever <code>OUTPUT_DIR</code>
+says; to collect another output tree elsewhere, run
+<code>analysis/collect_verdicts.py</code> on it directly
+(<a href="analysis/index.html#collect_verdictspy">Analysis</a>).</p>
+<p>With <code>--merge</code>, the rows of the methods found in the reports are replaced and
+every other row is kept, and a budget without reports keeps its CSV.</p>
+<hr>
+<h2 id="check_cataloguepy"><code>check_catalogue.py</code><a class="headerlink" href="#check_cataloguepy" title="Link to this section">#</a></h2>
+<p>See <a href="input.html#checking-the-catalogue">Inputs</a>.</p>
+<hr>
+<h2 id="output-tree">Output tree<a class="headerlink" href="#output-tree" title="Link to this section">#</a></h2>
+<pre><code class="language-text">output/
+├── flowsets/flowset_NNNN.json                  # the inputs (tracked in git)
+├── sweep/rb&lt;B&gt;/
+│   ├── reports/&lt;method&gt;/flowset_NNNN/
+│   │   ├── combo_*.json                        # dispatch tables
+│   │   ├── planner_report.json                 # ilp only
+│   │   └── offline_phase_report.json           # ilp only
+│   ├── logs/&lt;method&gt;/flowset_NNNN.log
+│   └── .parallel/status/flowset_NNNN           # ok, or fail &lt;methods&gt;
+├── rq4_siren/flowset_NNNN/H&lt;H*&gt;.json            # RQ4 models, and their *.result.json
+└── paper_run/                                   # manifests, pairs_&lt;host&gt;.tsv, stage logs
+</code></pre>
+<p>Everything except <code>flowsets/</code> is ignored by git. File formats:
+<a href="output_formats.html">Output formats</a>.</p>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="input.html">&larr; Inputs</a><a class="next" href="offline_phase/generate_flowset.html">Flowset generation &rarr;</a></div>
+<p class="source">Generated from <code>doc/scripts.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#installsh-and-install_condash">install.sh and install_conda.sh</a></li><li class="l2"><a href="#parameterssh">parameters.sh</a></li><li class="l2"><a href="#run_paper_experimentsh">run_paper_experiment.sh</a></li><li class="l2"><a href="#sweep_experimentsh-collect">sweep_experiment.sh --collect</a></li><li class="l2"><a href="#check_cataloguepy">check_catalogue.py</a></li><li class="l2"><a href="#output-tree">Output tree</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

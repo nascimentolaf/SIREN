@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluation figures (plot_evaluation.py) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="../baselines/index.html">Baselines</a><ul><li><a href="../baselines/rr.html">Round-robin (rr)</a></li><li><a href="../baselines/pf.html">Proportional fair (pf)</a></li><li><a href="../baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="../baselines/must.html">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="index.html">Analysis</a><ul><li><a href="figures.html" class="current">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="evaluation-figures-plot_evaluationpy">Evaluation figures (<code>plot_evaluation.py</code>)<a class="headerlink" href="#evaluation-figures-plot_evaluationpy" title="Link to this section">#</a></h1>
+<p><code>analysis/plot_evaluation.py</code> holds the plotting styles that
+<a href="index.html#paper-results-plot_paperpy"><code>plot_paper.py</code></a> imports (method order,
+labels, colours, dash patterns and markers). Run on its own, it draws a set of
+evaluation figures from a verdict CSV, plus <code>numbers.tex</code>, <code>\newcommand</code>
+macros for every number the prose quotes. These figures are not the paper's:
+the paper's come from <code>plot_paper.py</code>.</p>
+<p>Its default inputs (<code>analysis/csv/output.csv</code> and
+<code>analysis/csv/results_per_configuration.csv</code>) are written by no script of this repository, so pass a
+verdict CSV and an output directory, for example the 135 RB verdicts a run
+writes:</p>
+<pre><code class="language-bash">python3 analysis/plot_evaluation.py --list             # the figures it can draw
+python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
+    --outdir evaluation_figures --only schedulability
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"><code>--only</code> name</th>
+<th align="left">File</th>
+<th align="left">Shows</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>schedulability</code></td>
+<td align="left"><code>fig1_schedulability</code></td>
+<td align="left">verdict mix per method (headline)</td>
+</tr>
+<tr>
+<td align="left"><code>coverage</code></td>
+<td align="left"><code>fig2_configuration_coverage</code></td>
+<td align="left">how many configurations each method can schedule (reads the per-configuration CSV)</td>
+</tr>
+<tr>
+<td align="left"><code>agreement</code></td>
+<td align="left"><code>fig3_ilp_agreement</code></td>
+<td align="left">baselines against the ILP's proof</td>
+</tr>
+<tr>
+<td align="left"><code>severity</code></td>
+<td align="left"><code>fig4_miss_severity</code></td>
+<td align="left">how late, and how many flows</td>
+</tr>
+<tr>
+<td align="left"><code>ilp-cost</code></td>
+<td align="left"><code>fig5_ilp_cost</code></td>
+<td align="left">ILP solve time and search coverage</td>
+</tr>
+<tr>
+<td align="left"><code>headroom</code></td>
+<td align="left"><code>fig6_resource_headroom</code></td>
+<td align="left">RB peak against the budget</td>
+</tr>
+<tr>
+<td align="left"><code>config-space</code></td>
+<td align="left"><code>fig7_configuration_space</code></td>
+<td align="left">candidate space per application (reads the planner reports)</td>
+</tr>
+<tr>
+<td align="left"><code>config-table</code></td>
+<td align="left"><code>table_configurations.tex</code></td>
+<td align="left">the same as a LaTeX table (reads the planner reports)</td>
+</tr>
+<tr>
+<td align="left"><code>numbers</code></td>
+<td align="left"><code>numbers.tex</code></td>
+<td align="left">macros only</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="inputs">Inputs<a class="headerlink" href="#inputs" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Default</th>
+<th align="left">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--verdicts PATH</code></td>
+<td align="left"><code>analysis/csv/output.csv</code> (written by no script here)</td>
+<td align="left">every figure except <code>coverage</code></td>
+</tr>
+<tr>
+<td align="left"><code>--per-config PATH</code></td>
+<td align="left"><code>analysis/csv/results_per_configuration.csv</code> (written by no script here)</td>
+<td align="left"><code>coverage</code>, and the coverage macros</td>
+</tr>
+<tr>
+<td align="left"><code>--reports PATH</code></td>
+<td align="left"><code>output/reports</code></td>
+<td align="left"><code>config-space</code>, <code>config-table</code> (the ILP's <code>planner_report.json</code> files)</td>
+</tr>
+<tr>
+<td align="left"><code>--outdir PATH</code></td>
+<td align="left"><code>analysis/figures</code></td>
+<td align="left">PDFs, PNGs, <code>numbers.tex</code>, notes</td>
+</tr>
+</tbody>
+</table>
+</div><p>The verdict CSV is what <code>collect_verdicts.py</code> writes (see
+<a href="index.html#collect_verdictspy">Analysis</a>); any CSV with the same columns works.
+The per-configuration CSV comes from a per-configuration sweep that is not
+part of this repository, so <code>coverage</code> is skipped without it.</p>
+<blockquote>
+<p><strong>The coverage cache.</strong> The per-configuration CSV can be hundreds of MB, so
+its per-flowset summary is cached in <code>&lt;outdir&gt;/.cache/coverage.csv</code> and
+reused. The cache is keyed to the <strong>output directory, not the input file</strong>:
+give each data set its own <code>--outdir</code>, or pass <code>--refresh</code>. A stale cache is
+the one way this script can quietly plot old numbers.</p>
+<p>The two CSVs must come from the <strong>same run</strong>, or <code>coverage</code> describes a
+different sweep from the other figures.</p>
+</blockquote>
+<h2 id="what-each-figure-needs">What each figure needs<a class="headerlink" href="#what-each-figure-needs" title="Link to this section">#</a></h2>
+<p>Columns are read by name; extra columns and column order do not matter. A
+figure whose inputs are missing is <strong>skipped with a message</strong>; the others still
+render.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Figure</th>
+<th align="left">Needs, in the verdict CSV</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>schedulability</code></td>
+<td align="left"><code>flowset</code>, <code>method</code>, <code>verdict</code></td>
+</tr>
+<tr>
+<td align="left"><code>coverage</code></td>
+<td align="left"><em>(per-configuration CSV)</em> <code>flowset</code>, <code>method</code>, <code>verdict</code></td>
+</tr>
+<tr>
+<td align="left"><code>agreement</code></td>
+<td align="left"><code>flowset</code>, <code>method</code>, <code>verdict</code>, <strong>and <code>ilp</code> rows</strong></td>
+</tr>
+<tr>
+<td align="left"><code>severity</code></td>
+<td align="left"><code>method</code>, <code>worst_overrun_tti</code>, <code>n_deadline_misses</code>, <code>n_flows</code></td>
+</tr>
+<tr>
+<td align="left"><code>ilp-cost</code></td>
+<td align="left"><strong><code>ilp</code> rows</strong> with <code>n_candidates_total</code>, <code>n_candidates_tested</code>, <code>solve_time_ms_median</code>, <code>solve_time_ms_max</code></td>
+</tr>
+<tr>
+<td align="left"><code>headroom</code></td>
+<td align="left"><code>rb_peak</code>, <code>rb_capacity</code>; optionally <code>rb_violation</code>, <code>harq_overlap</code>, <code>reliability_ok</code></td>
+</tr>
+<tr>
+<td align="left"><code>numbers</code></td>
+<td align="left">as much of the above as exists</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>numbers.tex</code> is always written, even with <code>--only</code>, so the macros never lag
+the figures. Each run also writes <code>&lt;figure&gt;.note.txt</code> with the figure's data
+summary and prints a suggested caption.</p>
+<h2 id="when-the-data-set-differs">When the data set differs<a class="headerlink" href="#when-the-data-set-differs" title="Link to this section">#</a></h2>
+<ul>
+<li><strong>Fewer methods</strong>: the missing ones are dropped from every figure, legend and
+  macro, with one <code>note:</code> on stderr.</li>
+<li><strong>No ILP rows</strong>: <code>agreement</code> and <code>ilp-cost</code> skip themselves; <code>numbers.tex</code>
+  omits the <code>\Ilp*</code> and <code>\Recover*</code> macros.</li>
+<li><strong>A method the script does not know</strong>: ignored with a note (see below).</li>
+<li><strong>Another flowset count</strong>: every "n = …" and percentage follows the data.</li>
+<li><strong>Missing columns</strong>: the figure names what it wanted and stands aside;
+  <code>numbers.tex</code> defines only the macros the data supports.</li>
+<li><strong>Findings stated in words</strong>, in <code>agreement</code> ("no baseline ever reported a
+  schedule") and <code>headroom</code> ("none exceeded the RB budget"), are <strong>counted</strong>
+  and the footnote phrased from the count. Do not hard-code these sentences.</li>
+</ul>
+<h2 id="values-the-csv-does-not-carry">Values the CSV does not carry<a class="headerlink" href="#values-the-csv-does-not-carry" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Default</th>
+<th align="left">Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--tti-ms</code></td>
+<td align="left"><code>0.25</code></td>
+<td align="left"><code>worst_overrun_tti</code> is in TTIs and the lateness axis in ms; pass the run's TTI if it differs</td>
+</tr>
+<tr>
+<td align="left"><code>--candidate-cap</code></td>
+<td align="left"><code>30</code></td>
+<td align="left">drawn as a line in <code>fig5</code>; pass the run's <code>ILP_CANDIDATE_TIMEOUT</code>, or <code>0</code> for none</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="other-options">Other options<a class="headerlink" href="#other-options" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Default</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--width</code></td>
+<td align="left"><code>single</code></td>
+<td align="left"><code>single</code> (3.5 in, IEEE column), <code>double</code> (7.16 in), or inches</td>
+</tr>
+<tr>
+<td align="left"><code>--font</code></td>
+<td align="left"><code>serif</code></td>
+<td align="left"><code>serif</code> (to sit beside a Times body) or <code>sans</code></td>
+</tr>
+<tr>
+<td align="left"><code>--fontsize</code></td>
+<td align="left"><code>8</code></td>
+<td align="left">base point size</td>
+</tr>
+<tr>
+<td align="left"><code>--formats</code></td>
+<td align="left"><code>pdf png</code></td>
+<td align="left">any of <code>pdf</code>, <code>png</code>, <code>svg</code></td>
+</tr>
+<tr>
+<td align="left"><code>--dpi</code></td>
+<td align="left"><code>400</code></td>
+<td align="left">raster resolution</td>
+</tr>
+<tr>
+<td align="left"><code>--no-legend</code></td>
+<td align="left">off</td>
+<td align="left"><code>fig1</code>: no verdict legend (the caption names the colours)</td>
+</tr>
+<tr>
+<td align="left"><code>--ilp-cost-panels</code></td>
+<td align="left"><code>both</code></td>
+<td align="left"><code>fig5</code>: solve-time CDF and coverage (<code>both</code>) or the CDF alone (<code>time</code>)</td>
+</tr>
+<tr>
+<td align="left"><code>--embed-notes</code></td>
+<td align="left">off</td>
+<td align="left">also draw each note under its figure</td>
+</tr>
+<tr>
+<td align="left"><code>--refresh</code></td>
+<td align="left">off</td>
+<td align="left">rebuild the coverage cache</td>
+</tr>
+</tbody>
+</table>
+</div><p>PDF fonts are embedded and subset as Type 42 (no Type 3), so the PDFs pass IEEE
+PDF eXpress as they are.</p>
+<pre><code class="language-latex">\input{figures/numbers.tex}   % once, in the preamble
+The ILP schedules \OkIlp\ of the \NFlowsets\ flow sets.
+\includegraphics[width=\columnwidth]{figures/fig1_schedulability.pdf}
+</code></pre>
+<h2 id="adding-renaming-or-recolouring-a-method">Adding, renaming or recolouring a method<a class="headerlink" href="#adding-renaming-or-recolouring-a-method" title="Link to this section">#</a></h2>
+<p>Five dicts at the top of the script, keyed by the CSV's <code>method</code> value:
+<code>METHODS</code> (also the plotting order), <code>LABEL</code>, <code>COLOR</code>, <code>DASH</code> and <code>MARKER</code>.
+Renaming for a paper is a <code>LABEL</code> edit; adding a method needs an entry in all
+five. A method missing from one of them raises a <code>KeyError</code>. The dicts also
+style methods that the paper's CSVs contain but the paper does not report
+(<code>edf</code>, <code>5gtps</code>, <code>5gtps_harq</code>); a method absent from the CSV is dropped from
+every figure with a note.</p>
+<p>Colours encode identity and were chosen for colour-blind safety: the four hues
+of <code>ilp</code>, <code>qospf</code>, <code>pf</code> and <code>rr</code> keep every pair about 8 apart in OKLab (×100)
+under deuteranopia, protanopia and tritanopia (9.2 at their worst pair) and
+16.3 in normal vision. Every series also has its own dash pattern and marker,
+so it survives grayscale. <code>must</code> (olive) was added afterwards, without a
+recorded measurement for the enlarged set: re-check it before relying on
+colour alone.</p>
+<h2 id="troubleshooting">Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Symptom</th>
+<th align="left">Cause</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">coverage figure unchanged after new data</td>
+<td align="left">stale cache: new <code>--outdir</code>, or <code>--refresh</code></td>
+</tr>
+<tr>
+<td align="left"><code>unknown figure(s): [...]</code></td>
+<td align="left">typo in <code>--only</code>; <code>--list</code> prints the names</td>
+</tr>
+<tr>
+<td align="left"><code>note: ... has no rows for [...]</code></td>
+<td align="left">that method is absent from the CSV; the figures adapt</td>
+</tr>
+<tr>
+<td align="left"><code>skipped: ... has no ilp rows</code></td>
+<td align="left">expected for a baselines-only CSV</td>
+</tr>
+<tr>
+<td align="left">lateness axis off by a factor</td>
+<td align="left">wrong <code>--tti-ms</code></td>
+</tr>
+<tr>
+<td align="left">a cap line where there was no cap</td>
+<td align="left">pass the run's <code>--candidate-cap</code>, or <code>0</code></td>
+</tr>
+<tr>
+<td align="left"><code>KeyError</code> on a method name</td>
+<td align="left">in the CSV but not in all five dicts</td>
+</tr>
+<tr>
+<td align="left">a caption prints <code>n/a</code></td>
+<td align="left">it names a method this data set lacks</td>
+</tr>
+</tbody>
+</table>
+</div>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="index.html">&larr; Analysis</a><a class="next" href="../bler.html">BLER and MCS tables &rarr;</a></div>
+<p class="source">Generated from <code>doc/analysis/figures.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#inputs">Inputs</a></li><li class="l2"><a href="#what-each-figure-needs">What each figure needs</a></li><li class="l2"><a href="#when-the-data-set-differs">When the data set differs</a></li><li class="l2"><a href="#values-the-csv-does-not-carry">Values the CSV does not carry</a></li><li class="l2"><a href="#other-options">Other options</a></li><li class="l2"><a href="#adding-renaming-or-recolouring-a-method">Adding, renaming or recolouring a method</a></li><li class="l2"><a href="#troubleshooting">Troubleshooting</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

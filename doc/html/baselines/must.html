@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MUST (must) &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body data-root="../">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="../index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html">Home</a></li><li><a href="../getting_started.html">Getting started</a></li><li><a href="../architecture.html">Architecture</a></li><li><a href="../configuration.html">Configuration</a></li><li><a href="../input.html">Inputs</a></li><li><a href="../scripts.html">Scripts</a></li><li><a href="../offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="../offline_phase/planning.html">Configuration planning</a></li><li><a href="../offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="index.html">Baselines</a><ul><li><a href="rr.html">Round-robin (rr)</a></li><li><a href="pf.html">Proportional fair (pf)</a></li><li><a href="qospf.html">QoS-PF (qospf)</a></li><li><a href="must.html" class="current">MUST (must)</a></li></ul></li><li><a href="../output_formats.html">Output formats</a></li><li><a href="../analysis/index.html">Analysis</a><ul><li><a href="../analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="../bler.html">BLER and MCS tables</a></li><li><a href="../known_issues.html">Known issues</a></li><li><a href="../about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="must-must">MUST (<code>must</code>)<a class="headerlink" href="#must-must" title="Link to this section">#</a></h1>
+<p>Massive URLLC Scheduling Technique, the deadline-aware look-ahead scheduler of
+E. Khorov, A. Krasilov, I. Selnitskiy and I. F. Akyildiz, <em>"A Framework to
+Maximize the Capacity of 5G Systems for Ultra-Reliable Low-Latency
+Communications"</em>, IEEE TMC 20(6), 2021, Section 2.1, instantiated on this
+framework's job model. Not an official release; only the scheduler is
+implemented (not the paper's traffic model nor its priority groups). Method
+authors: Khorov, Krasilov, Selnitskiy, Akyildiz.</p>
+<p>Source: <code>baseline_algorithms/must/main.cpp</code>. Shared behaviour is described in
+<a href="index.html">Baselines</a>.</p>
+<h2 id="the-algorithm-in-the-paper">The algorithm in the paper<a class="headerlink" href="#the-algorithm-in-the-paper" title="Link to this section">#</a></h2>
+<p>Every mini-slot, for the packets queued at the gNB:</p>
+<ol>
+<li>sort by <code>(remaining lifetime, 1/c_p)</code>, where <code>c_p</code> is the gradient of a
+   logistic utility of the flow's moving-average packet-loss estimate;</li>
+<li>in that order, give each packet the free RBs of highest rate over the
+   (RB × mini-slot) matrix up to its deadline, earliest column first among
+   equal rates; a packet that cannot be completed before its lifetime expires
+   gets nothing;</li>
+<li>hand the RBs of the current mini-slot still free to a legacy scheduler so
+   packets finish earlier.</li>
+</ol>
+<p>Only the current mini-slot of the plan is executed; the plan is rebuilt every
+mini-slot, and a packet whose lifetime expires is discarded.</p>
+<h2 id="mapping-onto-this-framework">Mapping onto this framework<a class="headerlink" href="#mapping-onto-this-framework" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Paper</th>
+<th align="left">Here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">unit of work: bytes on RBs</td>
+<td align="left">the framework's TBs: a packet is <code>N</code> TBs, each holding <code>B</code> RBs on one HARQ process for its duration <code>C</code>, exactly the job model of the other baselines</td>
+</tr>
+<tr>
+<td align="left">mini-slot</td>
+<td align="left">one TTI; the plan is rebuilt every TTI</td>
+</tr>
+<tr>
+<td align="left">step 2</td>
+<td align="left">for each remaining TB of the packet, the earliest (process, start) at which <code>B</code> RBs and a process are free for the TB's whole worst-case duration and it still ends by the deadline less the upper-layer delay <code>t_up</code> (the packet's lifetime at the gNB: <code>t_up</code> follows the last TB and holds nothing); TBs are placed in segment order and may run in parallel. If any TB has no slot, the packet reserves nothing this TTI</td>
+</tr>
+<tr>
+<td align="left">highest-rate RBs first</td>
+<td align="left">vacuous under the flat channel every method sees, so placement is earliest-slot first</td>
+</tr>
+<tr>
+<td align="left">step 3</td>
+<td align="left">work-conserving pull-forward of planned TBs into the current TTI; with earliest-first placement it never finds anything to move, and is kept so the step exists if a frequency-selective channel is added</td>
+</tr>
+<tr>
+<td align="left">loss estimate, Eq. (1)</td>
+<td align="left">the same EWMA per flow, <code>β_i = PLR_target / 10</code>, <code>PLR_target</code> being the flow's error target <code>E_i</code>; updated on every delivery (0) and discard (1)</td>
+</tr>
+<tr>
+<td align="left">cost <code>c_p</code> (Lemma 1) and the tie-break of step 1</td>
+<td align="left"><code>c_p = −F′(PLR_i − PLR_target)</code>, logistic slope <code>A_i = 1 / PLR_target</code> (the paper does not fix <code>A</code>). Equal deadlines are ordered by <code>β_i · c_p</code>, Lemma 1's first-order utility gain: the paper has one target for every flow, where <code>β</code> is a common factor and this is its order by <code>c_p</code>; with per-flow targets <code>β_i · A_i = 1/10</code> for every flow, so ties go to the flow whose loss estimate is closest to its own target, not to a reliability class. The gain is computed in that form, <code>1/10</code> times the logistic slope at <code>(PLR_i − PLR_target) / PLR_target</code>, so flows with equal gains tie exactly whatever their targets. Remaining ties: application name</td>
+</tr>
+<tr>
+<td align="left">HARQ bookkeeping</td>
+<td align="left">attempts are inside the TB duration (worst case for the plan; under <code>EXEC_TIME_MODE=sampled</code> the process frees when the TB decodes and the next TTI's plan sees it), the job model every method shares, rather than re-planning each retransmission after a NACK</td>
+</tr>
+<tr>
+<td align="left">discard at lifetime expiry (<code>d_p = 0</code>)</td>
+<td align="left">the same: a packet still holding an unstarted TB at its lifetime's end (deadline less <code>t_up</code>) is discarded, its loss counted in the estimate then, and listed in <code>dropped_packets</code>. Before that, step 2 finds no slot for a TB that can no longer end in time</td>
+</tr>
+<tr>
+<td align="left">MCS: the gNB's conservative link adaptation (per-attempt error below <code>10^-3</code>), an input to MUST</td>
+<td align="left">the shared configuration rule (<a href="index.html#configuration-selection">Baselines</a>): no MCS of the 10 dB table reaches <code>10^-3</code> per attempt (the lowest is <code>2.16·10^-3</code>), so the attempts <code>A</code> the rule derives carry the reliability</td>
+</tr>
+<tr>
+<td align="left">traffic management (NAT) and congestion avoidance (§2.2, §2.3)</td>
+<td align="left">not used: the flows are periodic, and no flow is set aside</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="reading-its-results">Reading its results<a class="headerlink" href="#reading-its-results" title="Link to this section">#</a></h2>
+<ul>
+<li>MUST <strong>never dispatches a late TB</strong> (it drops the packet instead), so its
+  <code>worst_overrun_tti</code> is always 0. <code>collect_verdicts.py</code> counts every dropped
+  packet as a deadline miss (<code>n_dropped_packets</code>, included in
+  <code>n_deadline_misses</code>). Compare MUST to the other methods on misses, not on
+  overrun.</li>
+<li>Within one hyperperiod a flow's loss estimate moves only when one of its
+  packets is lost, so until then every flow has the same <code>β_i · c_p</code> and
+  step 1's order is earliest-deadline order: deadline, then application name.
+  A loss is a deadline miss, which already makes the flowset ko, and the
+  discard, too, only acts on a packet that has missed. What sets MUST apart
+  from a plain earliest-deadline-first policy is step 2's look-ahead: it keeps
+  RBs free for the slot it has reserved for a higher-ranked packet, or fills
+  the gap before that slot with a shorter TB, where an earliest-deadline-first
+  policy starts whatever fits now.</li>
+</ul>
+<h2 id="specifics">Specifics<a class="headerlink" href="#specifics" title="Link to this section">#</a></h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left"></th>
+<th align="left"></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>config.objective</code></td>
+<td align="left"><code>must</code></td>
+</tr>
+<tr>
+<td align="left">Default output (no 3rd argument)</td>
+<td align="left"><code>./&lt;flowset stem&gt;_must.json</code></td>
+</tr>
+<tr>
+<td align="left">Reads <code>SINR_DB</code></td>
+<td align="left">yes</td>
+</tr>
+</tbody>
+</table>
+</div><p>Extra report fields:</p>
+<pre><code class="language-jsonc">&quot;dropped_packets&quot;: [ { &quot;app&quot;: &quot;...&quot;, &quot;instance&quot;: 0, &quot;release_tti&quot;: 0,
+                       &quot;deadline_tti&quot;: 64, &quot;segments_not_started&quot;: 3,
+                       &quot;dropped_at_tti&quot;: 64 } ],
+&quot;n_dropped_packets&quot;: 1,
+&quot;must&quot;: { &quot;plr_estimate&quot;: { &quot;&lt;app&gt;&quot;: 1e-06 }, &quot;n_packets&quot;: 20 }
+</code></pre>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="qospf.html">&larr; QoS-PF (qospf)</a><a class="next" href="../output_formats.html">Output formats &rarr;</a></div>
+<p class="source">Generated from <code>doc/baselines/must.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#the-algorithm-in-the-paper">The algorithm in the paper</a></li><li class="l2"><a href="#mapping-onto-this-framework">Mapping onto this framework</a></li><li class="l2"><a href="#reading-its-results">Reading its results</a></li><li class="l2"><a href="#specifics">Specifics</a></li></ul></nav>
+</div>
+<script src="../search_index.js"></script>
+<script src="../search.js"></script>
+</body>
+</html>

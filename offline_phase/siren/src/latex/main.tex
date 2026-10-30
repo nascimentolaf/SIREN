@@ -1,0 +1,430 @@
+\documentclass[11pt]{article}
+
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{listings}
+\usepackage{url}
+
+\lstset{frame=tb,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=2
+}
+
+\geometry{margin=1in}
+
+\title{An Optimized Time-Indexed ILP Formulation for Periodic Parallel Machine Scheduling with Resource Constraints}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{System Model}\label{sec:model}
+
+\input{sysmodel.tex}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Decision Variables}\label{sec:vars}
+
+The binary decision variable is
+\[
+x_{jpt}=
+\begin{cases}
+1, & \text{if job }j\text{ starts at TTI }t\text{ on HARQ process }p,\\
+0, & \text{otherwise},
+\end{cases}
+\]
+created for every $p \in \mathcal{M}$ and only for the start times of the
+job's window,
+\[
+r_j \le t \le d_j - C_j .
+\]
+Variables outside the window are never created, which is what keeps the model
+small (Section~\ref{sec:size}). A job that starts at $t$ occupies its process
+and $B_j$ RBs during $[t, t + C_j)$, so it is running at TTI $t$ exactly when
+its start lies in $[\mathcal{L}_j(t), \mathcal{R}_j(t)]$, with
+\[
+\mathcal{L}_j(t) = \max(r_j,\, t - C_j + 1), \qquad
+\mathcal{R}_j(t) = \min(t,\, d_j - C_j).
+\]
+For notational convenience, the start time of job $j$ is
+\[
+S_j = \sum_{p\in\mathcal M} \sum_{t=r_j}^{d_j-C_j} t \, x_{jpt},
+\]
+which is well defined since each job starts exactly once
+(constraint~\eqref{eq:job_once}).
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Feasibility Constraints}\label{sec:feas}
+
+\subsection*{Assignment}
+
+Each job starts exactly once, on one process, within its window:
+\begin{equation}
+\sum_{p\in\mathcal M} \sum_{t=r_j}^{d_j-C_j} x_{jpt} = 1,
+\qquad \forall j\in\mathcal J.
+\label{eq:job_once}
+\end{equation}
+
+\subsection*{HARQ Process Capacity}
+
+Each HARQ process runs at most one job in every TTI:
+\begin{equation}
+\sum_{j\in\mathcal J} \sum_{t'=\mathcal{L}_j(t)}^{\mathcal{R}_j(t)} x_{jpt'} \le 1,
+\qquad \forall p\in\mathcal M,\; t\in\mathcal H.
+\label{eq:one_job_per_machine}
+\end{equation}
+
+\subsection*{RB Capacity}
+
+The RBs of the jobs running in a TTI total at most $B^{\max}$:
+\begin{equation}
+\sum_{p\in\mathcal M} \sum_{j\in\mathcal J} B_j
+\sum_{t'=\mathcal{L}_j(t)}^{\mathcal{R}_j(t)} x_{jpt'}
+\le B^{\max},
+\qquad \forall t\in\mathcal H.
+\label{eq:max_resources}
+\end{equation}
+
+A sum in \eqref{eq:one_job_per_machine} or \eqref{eq:max_resources} is empty
+when no job can be running at $t$; such a row is always satisfied and is not
+generated.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Symmetry-Breaking Constraints}\label{sec:sym}
+
+The $N_i$ jobs of $\mathcal{J}_{i,r}$ have the same release, deadline,
+occupation time and RBs, so any table stays valid when their starts and
+processes are exchanged. To remove these equivalent solutions, consecutive
+segments are ordered by start time:
+\begin{equation}
+S_{j_a} \le S_{j_{a+1}},
+\qquad \forall\, \mathcal{J}_{i,r},\; a = 1, \dots, N_i - 1,
+\label{eq:break_sym}
+\end{equation}
+or, in terms of the decision variables,
+\[
+\sum_{p\in\mathcal M} \sum_{t=r_{j_a}}^{d_{j_a}-C_{j_a}} t \, x_{j_a p t}
+\le
+\sum_{p\in\mathcal M} \sum_{t=r_{j_{a+1}}}^{d_{j_{a+1}}-C_{j_{a+1}}} t \, x_{j_{a+1} p t}.
+\]
+By transitivity, the $N_i - 1$ constraints per packet order all $N_i$
+segments, instead of $\binom{N_i}{2}$ pairwise constraints. No schedule is
+lost: relabelling the segments of any table in order of their start times
+gives an equivalent table that satisfies \eqref{eq:break_sym}. Ties are
+allowed, since two segments may start in the same TTI on different processes.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Objective Functions}\label{sec:obj}
+
+The formulation supports three objectives. Each keeps constraints
+\eqref{eq:job_once} to \eqref{eq:break_sym}; only the last one changes the
+right-hand side of \eqref{eq:max_resources}. Every objective value is an
+integer, and the solver is run with a zero optimality gap
+(Section~\ref{sec:impl}), so a reported optimum is exact.
+
+\subsection{Feasibility (Default)}\label{sec:obj_feas}
+
+Find any table that satisfies all constraints. The objective is a constant,
+$\min 0$.
+
+\subsection{Minimize HARQ Processes}\label{sec:obj_harq}
+
+Introduce one binary variable per process,
+\[
+u_p =
+\begin{cases}
+1, & \text{if process }p\text{ hosts a job},\\
+0, & \text{otherwise},
+\end{cases}
+\qquad p \in \mathcal{M},
+\]
+and solve
+\begin{equation}
+\min \sum_{p\in\mathcal M} u_p
+\quad \text{s.t.} \quad
+\sum_{j\in\mathcal J} \sum_{t=r_j}^{d_j-C_j} x_{jpt} \le Q \, u_p,
+\qquad \forall p\in\mathcal M.
+\label{eq:obj_harq}
+\end{equation}
+$Q = |\mathcal{J}|$ is a valid bound: at most $Q$ jobs start on one process.
+The optimum is the number of HARQ processes the table uses.
+
+\subsection{Minimize RB Peak}\label{sec:obj_rb}
+
+Introduce one integer variable $B^{\mathrm{peak}} \in \{0, \dots, B^{\max}\}$
+and replace the right-hand side of \eqref{eq:max_resources} with it:
+\begin{equation}
+\min B^{\mathrm{peak}}
+\quad \text{s.t.} \quad
+\sum_{p\in\mathcal M} \sum_{j\in\mathcal J} B_j
+\sum_{t'=\mathcal{L}_j(t)}^{\mathcal{R}_j(t)} x_{jpt'}
+\le B^{\mathrm{peak}},
+\qquad \forall t\in\mathcal H.
+\label{eq:obj_rb}
+\end{equation}
+Since $B^{\mathrm{peak}} \le B^{\max}$, \eqref{eq:obj_rb} implies
+\eqref{eq:max_resources}, so the hard cap still holds. At an optimum,
+$B^{\mathrm{peak}}$ equals the largest RB usage over the hyperperiod, and
+$B^{\max} - B^{\mathrm{peak}}$ RBs are free in every TTI: the guaranteed
+residual capacity for NRT traffic (RQ3 of the paper).
+
+The paper states the same objective as \eqref{eq:max_resources} plus
+$B^{\mathrm{peak}} \ge$ the RB usage of every TTI, without bounding
+$B^{\mathrm{peak}}$. Both forms have the same optimal tables and the same
+optimal value, because $B^{\mathrm{peak}} \le B^{\max}$ holds at any optimum
+of the paper's form. $B^{\mathrm{peak}}$ is declared integer, so every
+variable is integer and the model is a pure ILP. (It would be integral at the
+optimum anyway, since every $B_j$ is an integer and every $x_{jpt}$ is
+binary.)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Model Size and Optimizations}\label{sec:size}
+
+Let $w_i = D_i - t_\mathrm{up} - C_i + 1$ be the number of feasible starts of
+a job of $F_i$ (its window width), and let
+\[
+\mathcal{H}^{c} = \bigcup_{j\in\mathcal J} [r_j, d_j) \subseteq \mathcal{H}
+\]
+be the TTIs in which some job can run. The feasibility model has exactly:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Item} & \textbf{Count} & \textbf{Source} \\
+\midrule
+Binary variables $x_{jpt}$ & $M \sum_{i=1}^{N} N_i \, \frac{H}{T_i} \, w_i$ & Section~\ref{sec:vars} \\
+Assignment rows & $Q$ & \eqref{eq:job_once} \\
+HARQ-capacity rows & $M \, |\mathcal{H}^{c}|$ & \eqref{eq:one_job_per_machine} \\
+RB-capacity rows & $|\mathcal{H}^{c}|$ & \eqref{eq:max_resources} \\
+Symmetry-breaking rows & $\sum_{i=1}^{N} \frac{H}{T_i} \, (N_i - 1)$ & \eqref{eq:break_sym} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Without the window restriction there would be $M Q H$ binary variables; with
+it, each job has $M w_i$, independent of $H$. Symmetry breaking adds rows but
+no variables. Every count grows linearly with the number of jobs, hence with
+$H$ for a fixed set of periods. The objectives add:
+
+\begin{itemize}
+    \item \textbf{Feasibility}: nothing;
+    \item \textbf{HARQ processes}: $M$ binary variables $u_p$ and $M$ rows
+          \eqref{eq:obj_harq};
+    \item \textbf{RB peak}: one integer variable $B^{\mathrm{peak}}$ and no
+          row (each RB-capacity row gains one coefficient).
+\end{itemize}
+
+The \texttt{num\_variables} and \texttt{num\_constraints} fields of the report
+(Section~\ref{sec:impl}) count exactly these variables and rows.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\section{Implementation Notes}\label{sec:impl}
+
+\subsection*{Input}
+
+The input is the planner's \texttt{planner\_report.json}: per flow, the
+configurations of Section~V of the paper, grouped by segmentation option.
+An excerpt (one flow, one segmentation option with two configurations):
+
+\begin{lstlisting}
+{
+  "parameters": {
+    "a_max": 4, "rlc_header_bytes": 8, "t_tx_ms": 1.0, "t_up_ms": 4.0
+  },
+  "applications": [
+    {
+      "app": "DiscreteAutomation_T30",
+      "period": 30.0,
+      "deadline": 15.0,
+      "segmentation_options": [
+        {
+          "num_segments": 2,
+          "tbs": 469,
+          "mbc_combinations": [
+            { "a": 2, "b": 64, "bler": 0.006375, "c": 2.0, "m": 2 },
+            { "a": 3, "b": 50, "bler": 0.024140625, "c": 3.0, "m": 3 }
+          ]
+        }
+      ]
+    }
+  ]
+}
+\end{lstlisting}
+
+The model reads the following fields; times are in milliseconds and are
+converted to TTIs of $\Delta$~milliseconds (option \texttt{--tti}):
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Field} & \textbf{Symbol} & \textbf{Conversion} \\
+\midrule
+\texttt{parameters.t\_up\_ms} & $t_\mathrm{up}$ & $\lceil t_\mathrm{up} / \Delta \rceil$; required, the run is refused without it \\
+\texttt{period} & $T_i$ & $T_i / \Delta$, which must be an integer \\
+\texttt{deadline} & $D_i$ & $\lfloor D_i / \Delta \rfloor$ \\
+\texttt{num\_segments} & $N_i$ & none \\
+\texttt{mbc\_combinations[].b} & $B_i$ & none \\
+\texttt{mbc\_combinations[].c} & $C_i$ & $\lceil C_i / \Delta \rceil$ ($C_i = A_i\, t_\mathrm{tx}$) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Each rounding goes the way that cannot make an infeasible tuple look feasible:
+a deadline loses slack, an occupation time and the upper-layer delay grow. A
+period off the grid aborts the run (exit status 1), since the hyperperiod
+would not be a feasibility interval. The fields \texttt{app}, \texttt{m},
+\texttt{a} and \texttt{tbs} only label the output (\texttt{app} and
+\texttt{m} are nevertheless required). The other fields are ignored.
+
+\subsection*{Candidate Tuples}
+
+The configurations of flow $F_i$ (every \texttt{mbc\_combinations} entry of
+every segmentation option) form its set $\mathcal{P}_i$. A candidate tuple
+picks one configuration per flow, and each of the $\prod_i |\mathcal{P}_i|$
+tuples is a separate model. The tuples are enumerated like an odometer (the
+last flow changes fastest) and numbered from 1; this number is the
+\texttt{combo\_index} of the output. The sweep does not stop at the first
+schedulable tuple: it decides every tuple, or as many as the time budget
+allows.
+
+If some flow has no configuration ($\mathcal{P}_i = \emptyset$), no model is
+built: the report lists the flow under \texttt{infeasible\_flows}, and the run
+still exits with status 0, since this is a verdict on the flowset and not a
+failure.
+
+Two checks reject a tuple without building a model, and report it as not
+schedulable: some $D_i > T_i$ (outside the constrained-deadline model of
+Section~\ref{sec:model}), or some empty window, $C_i + t_\mathrm{up} > D_i$.
+
+\subsection*{Solver}
+
+The model is passed to Gurobi in two calls (\texttt{GRBnewmodel} for the
+variables, \texttt{GRBXaddconstrs} for every constraint), in one Gurobi
+environment started once per run, with:
+\begin{itemize}
+    \item one thread (\texttt{Threads=1}): the experiments run one process per
+          core, and the solvers' own threads would otherwise starve each
+          other;
+    \item \texttt{MIPGap = MIPGapAbs = 0}: every objective is an integer, so
+          the optimum is closed exactly;
+    \item \texttt{TimeLimit} set to the time this tuple may use (see
+          Timeouts below), at least 1~s.
+\end{itemize}
+Only two outcomes decide a tuple:
+\begin{center}
+\begin{tabular}{p{0.3\linewidth}p{0.62\linewidth}}
+\toprule
+\textbf{Gurobi status} & \textbf{Verdict} \\
+\midrule
+\texttt{OPTIMAL} & schedulable: the table is read from the $x_{jpt} > 0.5$ \\
+\texttt{INFEASIBLE}, \texttt{INF\_OR\_UNBD} & not schedulable (every variable is bounded, so both mean infeasible) \\
+\texttt{TIME\_LIMIT}, \texttt{ITERATION\_LIMIT} & timed out: undecided, even if a feasible solution was found \\
+anything else, or an API error & solver error: undecided \\
+\bottomrule
+\end{tabular}
+\end{center}
+An undecided tuple never makes a flowset proved unschedulable.
+
+\subsection*{Timeouts}
+
+Two limits apply, both wall-clock:
+\begin{itemize}
+    \item \texttt{--timeout} $S$: the budget of the whole sweep of one flowset
+          (default 300~s; 0 means no budget). When it runs out, the sweep
+          stops and the report says \texttt{"timed\_out": true}.
+    \item \texttt{--candidate-timeout} $c$: the cap of one tuple (default 0,
+          i.e., off). A tuple that reaches it is listed in
+          \texttt{timed\_out\_combos} and the sweep moves on to the next one.
+\end{itemize}
+Each solve gets the smaller of the remaining budget and $c$. The paper's
+experiment uses no sweep budget and $c = 60$~s
+(\texttt{scripts/sweep\_experiment.sh}).
+
+\subsection*{Objective Selection}
+
+\begin{itemize}
+    \item \texttt{--objective feasibility}: Section~\ref{sec:obj_feas}
+          (default);
+    \item \texttt{--objective harq}: Section~\ref{sec:obj_harq}
+          (\texttt{machines} is accepted as an alias);
+    \item \texttt{--objective rb\_peak}: Section~\ref{sec:obj_rb}, searched
+          over the tuples according to \texttt{--rb-peak-search}:
+    \begin{itemize}
+        \item \texttt{full} (the default of the binary): every tuple is
+              solved with the RB-peak objective;
+        \item \texttt{bounded} (the default of the experiment scripts):
+              every tuple is first decided with the feasibility objective.
+              The schedulable ones are then re-solved with the RB-peak
+              objective in ascending order of their mean RB usage
+              $\bar{u} = \sum_i N_i B_i C_i / T_i$. Since no table's peak is
+              below its mean usage, the search stops once the best peak found
+              is at most $\lceil \bar{u} \rceil$ of the next tuple. A tuple
+              that times out or fails in this second pass keeps its
+              feasibility table, with no peak; the best peak is optimal over
+              the decided tuples only when no such tuple occurred and the
+              budget held (\texttt{optimal\_over\_decided}).
+    \end{itemize}
+\end{itemize}
+The paper's experiment uses \texttt{rb\_peak} with the \texttt{bounded}
+search.
+
+\subsection*{Output}
+
+The report is written to the path given by \texttt{--output-scheduling}, or
+to standard output. It holds the configuration of the run, the number of
+tuples (total, tested, schedulable, timed out, errored, with the indices of
+the last two), \texttt{infeasible\_flows}, one entry per schedulable tuple
+(its flows, hyperperiod, \texttt{num\_jobs}, \texttt{num\_variables},
+\texttt{num\_constraints}, solve time, and \texttt{harq\_used} or
+\texttt{rb\_peak\_used}), and, for the bounded search, a summary of the second
+pass.
+
+Every schedulable tuple also gets a dispatch table,
+\texttt{combo\_<index>.json} in \texttt{--schedule-dir} (default
+\texttt{schedules}; \texttt{--no-schedules} skips them). It lists every job
+with its flow, segment, HARQ process, release, start, end and absolute
+deadline, in TTIs and in milliseconds, and its RBs. The end is when the TB
+frees its process and RBs; the packet is delivered $t_\mathrm{up}$ after the
+end of its last TB, and that is what the deadline bounds. With the bounded
+search, the RB-peak table replaces the feasibility table of the same tuple.
+Every field is described in \texttt{doc/output\_formats.md}.
+
+\subsection*{Command Line}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Option} & \textbf{Meaning} & \textbf{Default} \\
+\midrule
+\texttt{--n-rb} & $B^{\max}$ & 50 \\
+\texttt{--m-harq} & $M$ & 2 \\
+\texttt{--tti} & $\Delta$, in milliseconds & 0.25 \\
+\texttt{--objective} & \texttt{feasibility}, \texttt{harq} or \texttt{rb\_peak} & \texttt{feasibility} \\
+\texttt{--rb-peak-search} & \texttt{full} or \texttt{bounded} & \texttt{full} \\
+\texttt{--timeout} & sweep budget, seconds (0: none) & 300 \\
+\texttt{--candidate-timeout} & per-tuple cap, seconds (0: off) & 0 \\
+\texttt{--output-scheduling} & report path & standard output \\
+\texttt{--schedule-dir} & dispatch-table directory & \texttt{schedules} \\
+\texttt{--no-schedules} & write no dispatch table & off \\
+\texttt{--quiet}, \texttt{-q} & no per-tuple progress lines & off \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

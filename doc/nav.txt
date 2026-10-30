@@ -1,0 +1,27 @@
+# Sidebar order of the HTML documentation (doc/build_docs.py reads this).
+#
+# One page per line, relative to doc/. Indent a line by two spaces to nest it
+# under the line above. Optionally add "| Short label" to show a shorter name
+# than the page's title. A page that exists but is missing here is still
+# built, and appears under "Other pages" in the sidebar; add it here to place it.
+
+index.md | Home
+getting_started.md
+architecture.md
+configuration.md
+input.md
+scripts.md
+offline_phase/generate_flowset.md
+offline_phase/planning.md
+offline_phase/evaluation.md | ILP evaluation (siren)
+baselines/index.md
+  baselines/rr.md
+  baselines/pf.md
+  baselines/qospf.md
+  baselines/must.md
+output_formats.md
+analysis/index.md
+  analysis/figures.md | Evaluation figures
+bler.md
+known_issues.md
+about.md | About us

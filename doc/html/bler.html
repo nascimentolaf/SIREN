@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BLER and MCS tables &middot; 3D-model framework documentation</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body data-root="">
+<header class="topbar">
+  <button class="menu" aria-label="Toggle navigation" onclick="document.body.classList.toggle('nav-open')">&#9776;</button>
+  <a class="site" href="index.html">3D-model framework documentation</a>
+  <div class="search"><input id="search" type="search" placeholder="Search the docs" autocomplete="off" aria-label="Search the documentation"><ol id="results" hidden></ol></div>
+</header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html">Home</a></li><li><a href="getting_started.html">Getting started</a></li><li><a href="architecture.html">Architecture</a></li><li><a href="configuration.html">Configuration</a></li><li><a href="input.html">Inputs</a></li><li><a href="scripts.html">Scripts</a></li><li><a href="offline_phase/generate_flowset.html">Flowset generation</a></li><li><a href="offline_phase/planning.html">Configuration planning</a></li><li><a href="offline_phase/evaluation.html">ILP evaluation (siren)</a></li><li><a href="baselines/index.html">Baselines</a><ul><li><a href="baselines/rr.html">Round-robin (rr)</a></li><li><a href="baselines/pf.html">Proportional fair (pf)</a></li><li><a href="baselines/qospf.html">QoS-PF (qospf)</a></li><li><a href="baselines/must.html">MUST (must)</a></li></ul></li><li><a href="output_formats.html">Output formats</a></li><li><a href="analysis/index.html">Analysis</a><ul><li><a href="analysis/figures.html">Evaluation figures</a></li></ul></li><li><a href="bler.html" class="current">BLER and MCS tables</a></li><li><a href="known_issues.html">Known issues</a></li><li><a href="about.html">About us</a></li></ul></nav>
+<main>
+<article>
+<h1 id="bler-and-mcs-tables">BLER and MCS tables<a class="headerlink" href="#bler-and-mcs-tables" title="Link to this section">#</a></h1>
+<p><code>bler/</code> produces the link-layer table every scheduler reads,
+<code>input/mcs_configurations.json</code>: for each transport-block size and MCS, the
+per-attempt block error rate at a worst-case SINR and the resource blocks one
+attempt costs. You only need it to <strong>regenerate</strong> that table; the shipped one
+is ready to use.</p>
+<pre><code class="language-text">bler/main.py  (Sionna link simulation, one TBS at a time)
+      |
+      v
+bler/data/jakes_&lt;TBS bytes&gt;_mcs_bler_results_&lt;SINR&gt;.json
+      |
+      v
+bler/mcs_configurations/generate_mcs_configurations.py
+      |
+      v
+mcs_configurations.json  --copy--&gt;  input/mcs_configurations.json
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Directory</th>
+<th align="left">Content</th>
+<th align="left">Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>bler/</code></td>
+<td align="left">Sionna simulation, plotting, table generation</td>
+<td align="left"><strong>used</strong>, produced the current table</td>
+</tr>
+</tbody>
+</table>
+</div><h2 id="python-sionna">Python / Sionna<a class="headerlink" href="#python-sionna" title="Link to this section">#</a></h2>
+<h3 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Link to this section">#</a></h3>
+<p>Python 3.10 or later. The code uses the <strong>Sionna 1.x</strong> API (<code>sionna.phy.*</code>,
+<code>device="cpu"</code> arguments) and SciPy; Sionna 0.x does not work.
+<code>bler/requirements.txt</code> pins a set of versions that has been run
+together (Sionna 1.2.2, TensorFlow 2.21.0, NumPy 1.26.2, SciPy 1.15.3,
+Matplotlib 3.10.8):</p>
+<pre><code class="language-bash">cd bler
+python3 -m pip install -r requirements.txt
+</code></pre>
+<p>Sionna also installs its ray-tracing package (<code>sionna-rt</code>, with <code>mitsuba</code> and
+<code>drjit</code>), which this code does not use.</p>
+<p>The simulation runs on CPU only: <code>main.py</code> hides every GPU
+(<code>CUDA_VISIBLE_DEVICES=-1</code>) and parallelises with <code>multiprocessing</code> (start
+method <code>spawn</code>). Run everything from <code>bler/</code>; output paths are relative
+(<code>data/</code>, <code>img/</code>).</p>
+<h3 id="running-a-simulation-mainpy">Running a simulation: <code>main.py</code><a class="headerlink" href="#running-a-simulation-mainpy" title="Link to this section">#</a></h3>
+<pre><code class="language-bash">cd bler/
+python main.py jakes        # or: python main.py awgn   (default: awgn)
+</code></pre>
+<p>The parameters are set in the <code>__main__</code> block of <code>main.py</code>; edit them there:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Parameter</th>
+<th align="left">Value in the file</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>target_tbs_list</code></td>
+<td align="left"><code>[129*8]</code> (the full set <code>[66, 129, 261, 469]×8</code> is commented)</td>
+<td align="left">TB sizes, <strong>bits</strong></td>
+</tr>
+<tr>
+<td align="left"><code>snr_db_list</code></td>
+<td align="left"><code>[10.0]</code></td>
+<td align="left">worst-case subcarrier SINR, dB</td>
+</tr>
+<tr>
+<td align="left"><code>mcs_table</code>, <code>min_mcs</code>, <code>max_mcs</code></td>
+<td align="left"><code>1</code>, <code>0</code>, <code>28</code></td>
+<td align="left">PDSCH MCS table (TS 38.214) and index range; table 2 is capped at 27</td>
+</tr>
+<tr>
+<td align="left"><code>scs</code>, <code>fc</code>, <code>speed</code></td>
+<td align="left">60 kHz, 3.8 GHz, 3 m/s</td>
+<td align="left">for the Jakes model (Doppler)</td>
+</tr>
+<tr>
+<td align="left"><code>target_num_block_errors</code></td>
+<td align="left"><code>100</code></td>
+<td align="left">stop an MCS after this many block errors</td>
+</tr>
+<tr>
+<td align="left"><code>num_blocks_inside_parfor</code></td>
+<td align="left"><code>1000</code></td>
+<td align="left">blocks per worker task</td>
+</tr>
+<tr>
+<td align="left"><code>max_num_blocks_per_worker</code></td>
+<td align="left"><code>1e8</code></td>
+<td align="left">safety cap</td>
+</tr>
+</tbody>
+</table>
+</div><p>For every MCS index it computes modulation order and code rate
+(<code>decode_mcs_index</code>), the RBs needed (below), runs the Monte Carlo simulation
+and records the result. Once an MCS returns BLER 1.0, every higher MCS is
+recorded as 1.0 without being simulated.</p>
+<p>Output: <code>data/&lt;channel&gt;_&lt;TBS in bytes&gt;_mcs_bler_results_&lt;SINR&gt;.json</code>, a list
+with one object per MCS:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Field</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>mcs_index</code>, <code>mcs_table</code></td>
+<td align="left">MCS</td>
+</tr>
+<tr>
+<td align="left"><code>modulation_order</code>, <code>code_rate</code></td>
+<td align="left">from the MCS table</td>
+</tr>
+<tr>
+<td align="left"><code>num_rbs</code></td>
+<td align="left">RBs one transmission needs</td>
+</tr>
+<tr>
+<td align="left"><code>bler</code></td>
+<td align="left">simulated block error rate</td>
+</tr>
+<tr>
+<td align="left"><code>snr_db</code></td>
+<td align="left">SINR</td>
+</tr>
+<tr>
+<td align="left"><code>num_block_errors</code>, <code>num_blocks</code>, <code>execution_time_s</code></td>
+<td align="left">Monte Carlo statistics</td>
+</tr>
+</tbody>
+</table>
+</div><h3 id="the-simulation-bler_corepy">The simulation: <code>bler_core.py</code><a class="headerlink" href="#the-simulation-bler_corepy" title="Link to this section">#</a></h3>
+<ul>
+<li><code>simulate_chunk(...)</code>: runs in a worker process and imports TensorFlow and
+  Sionna there (importing before forking deadlocks). Per block: 5G NR TB
+  encoding with <code>TBEncoder</code> (CRC, LDPC, rate matching), mapping, the channel,
+  demapping and <code>TBDecoder</code>. Channels: <code>awgn</code>, or <code>jakes</code>, time-correlated
+  Rayleigh fading generated through a precomputed Cholesky factor of the Jakes
+  autocorrelation <code>J0(2π f_d Δt)</code>, with perfect equalisation.</li>
+<li><code>helper_ldpc_bler_sim(...)</code>: distributes chunks over a <code>multiprocessing.Pool</code>
+  until the target number of errors is reached; computes the Doppler
+  <code>f_d = speed × fc / c</code> and the Cholesky factor for Jakes.</li>
+<li><code>get_rbs(tbs, modulation_order, code_rate)</code> returns the RBs needed for one TB:
+  <code>ceil(coded bits / (156 × Qm × layers))</code>, with 156 resource elements per RB
+  (12 subcarriers × 14 symbols − 12 DMRS).</li>
+</ul>
+<h3 id="building-the-table-mcs_configurationsgenerate_mcs_configurationspy">Building the table: <code>mcs_configurations/generate_mcs_configurations.py</code><a class="headerlink" href="#building-the-table-mcs_configurationsgenerate_mcs_configurationspy" title="Link to this section">#</a></h3>
+<pre><code class="language-bash">cd bler/
+python mcs_configurations/generate_mcs_configurations.py \
+    data/jakes_66_mcs_bler_results_10.0.json data/jakes_129_mcs_bler_results_10.0.json \
+    data/jakes_261_mcs_bler_results_10.0.json data/jakes_469_mcs_bler_results_10.0.json \
+    --output mcs_configurations.json
+cp mcs_configurations.json ../../input/mcs_configurations.json
+</code></pre>
+<ul>
+<li>TBS and SINR are read from the <strong>file name</strong>, which must match
+  <code>jakes_&lt;tbs&gt;_mcs_bler_results_&lt;sinr&gt;.json</code>; AWGN results are not accepted.</li>
+<li>The BLER is copied as simulated: <code>bler_core.py</code> encodes the whole TB and
+  counts an error when its TB CRC fails, so it is already the rate at which
+  one transmission of the whole TB is not decoded. Splitting a packet into
+  several TBs is the planner's business, through Eq. (3) with the flow's own
+  <code>N</code>.</li>
+<li>Rows whose <code>bler</code> is not in <code>(0, 1)</code> are dropped: those MCS never decode, or
+  never fail within the simulation's precision.</li>
+<li>Output: the current format, described in <a href="input.html#mcs-table-mcs_configurationsjson">Inputs</a>.</li>
+</ul>
+<p><code>check_catalogue.py</code> should be re-run after replacing the table: the Pareto
+sets, and so the feasibility of the catalogue, depend on it.</p>
+<h3 id="other-scripts">Other scripts<a class="headerlink" href="#other-scripts" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Script</th>
+<th align="left">Usage</th>
+<th align="left">Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>extract.py</code></td>
+<td align="left"><code>python extract.py &lt;results.json&gt; &lt;key&gt;</code></td>
+<td align="left">the values of one field (e.g. <code>bler</code>, <code>num_rbs</code>), one per line, in <code>output.txt</code></td>
+</tr>
+<tr>
+<td align="left"><code>plot_mcs.py</code></td>
+<td align="left"><code>python plot_mcs.py data/&lt;one results file&gt;.json</code></td>
+<td align="left">MCS vs BLER and MCS vs RBs, <code>img/&lt;same name&gt;.png</code></td>
+</tr>
+<tr>
+<td align="left"><code>plot_multi_mcs.py</code></td>
+<td align="left"><code>python plot_multi_mcs.py data/&lt;file1&gt;.json data/&lt;file2&gt;.json …</code></td>
+<td align="left">the same for several files, <code>img/mcs_charts.png</code></td>
+</tr>
+<tr>
+<td align="left"><code>mcs_configurations/from_json_to_mcs_conf.py</code></td>
+<td align="left"><code>python mcs_configurations/from_json_to_mcs_conf.py data/&lt;results&gt;.json</code></td>
+<td align="left"><code>mk_conf_&lt;TBS&gt;B_&lt;SINR&gt;dB.py</code> and <code>.tex</code>: for each decade target 1e-2…1e-8, the <code>(MCS, attempts)</code> choices, dominated ones removed (a presentation table)</td>
+</tr>
+</tbody>
+</table>
+</div><h3 id="data">Data<a class="headerlink" href="#data" title="Link to this section">#</a></h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Path</th>
+<th align="left">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>data/jakes_{66,129,261,469}_mcs_bler_results_10.0.json</code></td>
+<td align="left">the results behind the current table (Jakes, 10 dB)</td>
+</tr>
+<tr>
+<td align="left"><code>data/past_cellringdata/</code></td>
+<td align="left">earlier results at 0 and 20 dB (and two uplink files) with their <code>mk_conf_*</code> tables</td>
+</tr>
+<tr>
+<td align="left"><code>mcs_configurations/mk_conf_*_10dB.{py,tex}</code></td>
+<td align="left"><code>from_json_to_mcs_conf.py</code> output for the 10 dB results</td>
+</tr>
+<tr>
+<td align="left"><code>mcs_configurations/mcs_configurations.json</code></td>
+<td align="left">a table in the <strong>retired</strong> decade-bucket format (<code>configurations</code>/<code>mkb</code>), not the input table; the planner and baselines reject it, and nothing in the pipeline reads it</td>
+</tr>
+<tr>
+<td align="left"><code>output.txt</code></td>
+<td align="left">last output of <code>extract.py</code></td>
+</tr>
+<tr>
+<td align="left"><code>img/</code></td>
+<td align="left">figures from the plotting scripts</td>
+</tr>
+</tbody>
+</table>
+</div>
+</article>
+<footer>
+<div class="pager"><a class="prev" href="analysis/figures.html">&larr; Evaluation figures (plot_evaluation.py)</a><a class="next" href="known_issues.html">Known issues &rarr;</a></div>
+<p class="source">Generated from <code>doc/bler.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
+</footer>
+</main>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#python-sionna">Python / Sionna</a></li><li class="l3"><a href="#requirements">Requirements</a></li><li class="l3"><a href="#running-a-simulation-mainpy">Running a simulation: main.py</a></li><li class="l3"><a href="#the-simulation-bler_corepy">The simulation: bler_core.py</a></li><li class="l3"><a href="#building-the-table-mcs_configurationsgenerate_mcs_configurationspy">Building the table: mcs_configurations/generate_mcs_configurations.py</a></li><li class="l3"><a href="#other-scripts">Other scripts</a></li><li class="l3"><a href="#data">Data</a></li></ul></nav>
+</div>
+<script src="search_index.js"></script>
+<script src="search.js"></script>
+</body>
+</html>

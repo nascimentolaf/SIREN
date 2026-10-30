@@ -1,0 +1,140 @@
+This note specifies the time-indexed integer linear program (ILP) built and
+solved by \path{offline_phase/siren}. It is the model of
+Section~VI of the paper (the ILP of SIREN), in the paper's notation, together
+with the details the paper leaves to the implementation
+(Section~\ref{sec:impl}). One model is built per candidate tuple, i.e., per
+choice of one transmission configuration for every flow.
+
+\subsection{Flows, Tasks and Resources}
+
+The gNB serves $N$ periodic flows $\mathcal{F}=\{F_1,\dots,F_N\}$. A candidate
+tuple fixes one configuration $K_i$ per flow (a segmentation option and a
+combination of MCS, RBs and attempts, chosen in Section~V of the paper), so
+that flow $F_i$ contributes $N_i$ identical TB-tasks
+\[
+\tau_{i,k}=(C_i, T_i, D_i, B_i), \qquad k=1,\dots,N_i,
+\]
+where:
+\begin{itemize}
+    \item $T_i$ is the period;
+    \item $D_i$ is the relative deadline of the packet, with $D_i \le T_i$
+          (constrained deadlines);
+    \item $C_i = A_i\, t_\mathrm{tx}$ is the worst-case occupation time of one
+          TB (its WCTT): the time it holds its HARQ process and its RBs,
+          all $A_i$ attempts included;
+    \item $B_i$ is the number of RBs the TB reserves at every TTI of $C_i$;
+    \item $N_i$ is the number of TBs (segments) of one packet.
+\end{itemize}
+Releases are synchronous (the first packet of every flow is released at
+time~$0$) and execution is non-preemptive. A packet is delivered
+$t_\mathrm{up}$ after its last TB ends: the upper-layer delay holds neither a
+HARQ process nor RBs, but it counts towards the packet's deadline.
+
+Two resources are shared:
+\begin{itemize}
+    \item the set $\mathcal{M}$ of $M$ HARQ processes, identical processors:
+          a TB occupies one of them, non-preemptively, for its whole $C_i$;
+    \item a pool of $B^{\max}$ RBs, replenished at every TTI: the RBs of the
+          TBs running in a TTI must total at most $B^{\max}$.
+\end{itemize}
+
+Time is slotted into TTIs of duration $\Delta$. The model works on TTI
+indices: from here on, $T_i$, $D_i$, $C_i$, $t_\mathrm{up}$, $H$ and every
+job time are integer numbers of TTIs, converted from the millisecond values
+as described in Section~\ref{sec:impl} (exactly, for the paper's catalogue).
+The hyperperiod and its TTIs are
+\[
+H = \operatorname{lcm}(T_1, \dots, T_N), \qquad
+\mathcal{H} = \{0, 1, \dots, H-1\}.
+\]
+
+\subsection{Job Expansion}
+
+Packet $r$ of flow $F_i$ is released at $r\,T_i$, for
+$r = 0, \dots, H/T_i - 1$, and each of its $N_i$ TBs is a job. A job $j$ of
+$F_i$ has
+\[
+r_j = r\,T_i, \qquad C_j = C_i, \qquad B_j = B_i, \qquad
+d_j = r_j + D_i - t_\mathrm{up}.
+\]
+As in the paper, $d_j$ is the packet's absolute deadline less
+$t_\mathrm{up}$: the latest time at which the job may \emph{end} for its packet
+to be delivered on time. A job may therefore start at any
+$t \in [r_j,\, d_j - C_j]$, its \emph{window}. The jobs of one packet share
+$r_j$ and $d_j$, so the packet meets its deadline exactly when all its jobs
+end by $d_j$.
+
+After expansion, the periodic problem is a finite, discrete-time scheduling
+problem over $[0, H)$ with the job set
+\[
+\mathcal{J} = \{J_1, \dots, J_Q\}, \qquad
+Q = |\mathcal{J}| = \sum_{i=1}^{N} N_i \, \frac{H}{T_i}.
+\]
+We write $\mathcal{J}_{i,r} = \{j_1, \dots, j_{N_i}\}$ for the jobs of packet
+$r$ of $F_i$, where $j_a$ is TB segment $a$.
+
+\subsection{Notation Summary}
+
+\subsubsection*{Sets}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$\mathcal{F}$ & Flows $F_1, \dots, F_N$ \\
+$\mathcal{M}$ & HARQ processes, $|\mathcal{M}| = M$ \\
+$\mathcal{J}$ & Jobs of one hyperperiod, $|\mathcal{J}| = Q$ \\
+$\mathcal{J}_{i,r}$ & The $N_i$ jobs of packet $r$ of flow $F_i$ \\
+$\mathcal{H}$ & TTI indices of one hyperperiod, $\{0, \dots, H-1\}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection*{Parameters (all times in TTIs)}
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Symbol} & \textbf{Description} \\
+\midrule
+$T_i$, $D_i$ & Period and relative deadline of flow $F_i$ \\
+$C_i$, $B_i$ & Occupation time (WCTT) and RBs per TTI of one TB of $F_i$ \\
+$N_i$ & TBs per packet of $F_i$ \\
+$t_\mathrm{up}$ & Upper-layer delay between a packet's last TB end and its delivery \\
+$r_j$, $d_j$ & Release and latest end of job $j$, $d_j = r_j + D_i - t_\mathrm{up}$ \\
+$C_j$, $B_j$ & Occupation time and RBs of job $j$ (those of its flow) \\
+$B^{\max}$ & RBs available in every TTI \\
+$M$ & Number of HARQ processes \\
+$H$ & Hyperperiod, $\operatorname{lcm}(T_1, \dots, T_N)$ \\
+$Q$ & Number of jobs, $\sum_i N_i H / T_i$ \\
+$\Delta$ & TTI duration (milliseconds per index) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsubsection*{Variables}
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Symbol} & \textbf{Domain} & \textbf{Description} \\
+\midrule
+$x_{jpt}$ & $\{0,1\}$ & Job $j$ starts at TTI $t$ on HARQ process $p$ (Section~\ref{sec:vars}) \\
+$u_p$ & $\{0,1\}$ & Process $p$ hosts a job (HARQ objective only, Section~\ref{sec:obj_harq}) \\
+$B^{\mathrm{peak}}$ & $\{0, \dots, B^{\max}\}$ & Peak RB usage (RB-peak objective only, Section~\ref{sec:obj_rb}) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Remarks}
+\begin{itemize}
+    \item Releases are synchronous and execution is non-preemptive: once a job
+          starts, it holds its HARQ process and its RBs for $C_j$ consecutive
+          TTIs.
+    \item Since $D_i \le T_i$, every job lies inside the hyperperiod:
+          $d_j \le r_j + D_i \le r_j + T_i \le H$. No job crosses the boundary
+          at $H$, so the table computed for $[0, H)$ can be replayed
+          cyclically.
+    \item The RB reservation is conservative: a job reserves $B_j$ RBs at every
+          TTI of $C_j$, including TTIs in which it does not transmit
+          (Section~IV-B of the paper). A table feasible under this
+          reservation therefore also satisfies the real RB constraint.
+\end{itemize}

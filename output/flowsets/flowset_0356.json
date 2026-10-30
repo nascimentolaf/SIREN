@@ -1,0 +1,38 @@
+[
+    {
+        "5qi": 82,
+        "app": "DiscreteAutomation_T35",
+        "deadline": 20,
+        "error": 0.0001,
+        "packetsize": 1024,
+        "period": 35,
+        "type": "RT"
+    },
+    {
+        "5qi": 82,
+        "app": "DiscreteAutomation_T84",
+        "deadline": 40,
+        "error": 0.0001,
+        "packetsize": 256,
+        "period": 84,
+        "type": "RT"
+    },
+    {
+        "5qi": 85,
+        "app": "HighReliability_T105",
+        "deadline": 60,
+        "error": 1e-08,
+        "packetsize": 256,
+        "period": 105,
+        "type": "RT"
+    },
+    {
+        "5qi": 88,
+        "app": "Monitoring_T20",
+        "deadline": 10,
+        "error": 0.001,
+        "packetsize": 128,
+        "period": 20,
+        "type": "RT"
+    }
+]
