@@ -239,13 +239,15 @@ sizes. Each cell is period (ms) / packet size (B):</p>
 any retained configuration is 4 ms (<code>A^max = 4</code>, <code>t_tx = 1 ms</code>), to which the
 upper-layer delay <code>t_up = 4 ms</code> adds towards the deadline (it holds no HARQ
 process or RB).
-A flowset of four draws a median of 1200 and at most 11 000 candidate
-configurations for the ILP. <code>C(30, 4) = 27 405</code>, so the 1000 flowsets are drawn
-without repetition.</p>
+Over all <code>C(30, 4)</code> combinations, as <code>check_catalogue.py</code> prints them, a flowset
+of four has a median of 1200 and at most 11 000 candidate configurations for the
+ILP; the 1000 flowsets have a median of 1260 and at most 11 000 (<code>MedianTuples</code>
+and <code>MaxTuples</code> in <code>results/figures/numbers_results.tex</code>).
+<code>C(30, 4) = 27 405</code>, so the 1000 flowsets are drawn without repetition.</p>
 <h3 id="how-it-is-built">How it is built<a class="headerlink" href="#how-it-is-built" title="Link to this section">#</a></h3>
 <ul>
 <li><strong>Five reliability classes</strong> (<code>1e-3</code>, <code>1e-4</code>, <code>1e-5</code>, <code>1e-6</code>, <code>1e-8</code>), the
-  classes of the paper's application table, each anchored on the 5QI row whose
+  classes of the paper's flowsets, each anchored on the 5QI row whose
   service description is closest (88 motion tracking, 82 discrete automation,
   84 intelligent transport, 85 for the two strictest classes).</li>
 <li><strong>Deadlines 10 to 60 ms.</strong></li>
@@ -370,7 +372,7 @@ simulation results in <code>bler/data/</code> (see <a href="bler.html">BLER and 
 </tr>
 <tr>
 <td align="left"><code>mcs[].bler</code></td>
-<td align="left">per-attempt error rate of a whole TB, as simulated: the value Eq. (4) uses</td>
+<td align="left">per-attempt error rate of a whole TB, as simulated: the value Eq. (2) uses</td>
 </tr>
 <tr>
 <td align="left"><code>mcs[].b</code></td>
@@ -386,7 +388,7 @@ of an entry (older tables also carried <code>ni</code> and <code>bler_raw</code>
 Rows whose BLER is outside <code>(0, 1)</code> are dropped at generation time.</p>
 <p><strong>Retired format.</strong> A table bucketed by decade error targets
 (<code>configurations</code> → <code>error</code> → <code>mkb: [{m, k, b}]</code>, <code>k</code> a precomputed attempt
-count) would force the planner to round its Eq. (3) target to a decade, which
+count) would force the planner to round its Eq. (1) target to a decade, which
 relaxes reliability targets by 2 to 3× for <code>N = 2</code> and <code>N = 3</code>. The planner and
 the baselines reject that format with a message pointing at the generator.
 <code>bler/mcs_configurations/mcs_configurations.json</code> is a file <strong>in the

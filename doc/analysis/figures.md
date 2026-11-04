@@ -131,9 +131,8 @@ Colours encode identity and were chosen for colour-blind safety: the four hues
 of `ilp`, `qospf`, `pf` and `rr` keep every pair about 8 apart in OKLab (×100)
 under deuteranopia, protanopia and tritanopia (9.2 at their worst pair) and
 16.3 in normal vision. Every series also has its own dash pattern and marker,
-so it survives grayscale. `must` (olive) was added afterwards, without a
-recorded measurement for the enlarged set: re-check it before relying on
-colour alone.
+so it survives grayscale. `must` (olive) is not part of this measurement:
+check it before relying on colour alone.
 
 ## Troubleshooting
 

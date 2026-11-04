@@ -165,12 +165,16 @@ ILP solved by <code>siren</code> and the four baselines MUST, QoS-PF, RR and PF,
 <td align="left">one, set in <code>siren</code></td>
 </tr>
 <tr>
+<td align="left">Optimality gap</td>
+<td align="left">zero (<code>MIPGap</code>, <code>MIPGapAbs</code>), set in <code>siren</code></td>
+</tr>
+<tr>
 <td align="left"><code>RQ4_SAMPLE</code>, <code>RQ4_CAP</code></td>
 <td align="left"><code>100</code> flowsets, <code>3600</code> s per model, at 135 RBs (<code>RQ4_RB</code>)</td>
 </tr>
 <tr>
 <td align="left"><code>RQ4_SPLIT_H</code>, <code>RQ4_JOBS_LARGE</code></td>
-<td align="left">RQ4 solves the models up to 8400 ms with <code>-j</code> workers, then the larger ones <code>12</code> at a time (they need several GB each)</td>
+<td align="left">RQ4 solves the models up to 8400 ms with <code>-j</code> workers (<code>-j 50</code> per server in the paper's run), then the larger ones <code>12</code> at a time (they need several GB each)</td>
 </tr>
 </tbody>
 </table>
@@ -243,7 +247,8 @@ every other row is kept, and a budget without reports keeps its CSV.</p>
 └── paper_run/                                   # manifests, pairs_&lt;host&gt;.tsv, stage logs
 </code></pre>
 <p>Everything except <code>flowsets/</code> is ignored by git. File formats:
-<a href="output_formats.html">Output formats</a>.</p>
+<a href="output_formats.html">Output formats</a>. The outputs of the paper's run are in
+<code>results/</code>, at the repository root (<code>results/README.md</code>).</p>
 </article>
 <footer>
 <div class="pager"><a class="prev" href="input.html">&larr; Inputs</a><a class="next" href="offline_phase/generate_flowset.html">Flowset generation &rarr;</a></div>

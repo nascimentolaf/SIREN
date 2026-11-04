@@ -86,8 +86,9 @@ ILP solved by `siren` and the four baselines MUST, QoS-PF, RR and PF, on the
 | `ILP_TIMEOUT` | `0`: no budget per flowset (not overridable) |
 | `ILP_CANDIDATE_TIMEOUT` | `60` s per ILP tuple (wall-clock) |
 | Gurobi threads | one, set in `siren` |
+| Optimality gap | zero (`MIPGap`, `MIPGapAbs`), set in `siren` |
 | `RQ4_SAMPLE`, `RQ4_CAP` | `100` flowsets, `3600` s per model, at 135 RBs (`RQ4_RB`) |
-| `RQ4_SPLIT_H`, `RQ4_JOBS_LARGE` | RQ4 solves the models up to 8400 ms with `-j` workers, then the larger ones `12` at a time (they need several GB each) |
+| `RQ4_SPLIT_H`, `RQ4_JOBS_LARGE` | RQ4 solves the models up to 8400 ms with `-j` workers (`-j 50` per server in the paper's run), then the larger ones `12` at a time (they need several GB each) |
 
 `RBS`, `HARQs`, `METHODS`, `ILP_CANDIDATE_TIMEOUT` and the `RQ4_*` values can
 be overridden in the environment, for tests only. The rest comes from
@@ -179,4 +180,5 @@ output/
 ```
 
 Everything except `flowsets/` is ignored by git. File formats:
-[Output formats](output_formats.md).
+[Output formats](output_formats.md). The outputs of the paper's run are in
+`results/`, at the repository root (`results/README.md`).

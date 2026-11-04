@@ -60,15 +60,15 @@ a schedule for `[0, H)` can be replayed forever.
 ## Configuration selection is shared (Section V)
 
 Every component that turns a flow into transport blocks uses **one**
-implementation of Eqs. (2) to (6), the header-only `common/urllc_config.hpp`:
+implementation of Section V, the header-only `common/urllc_config.hpp`:
 
-| Step | Equation | Function |
+| Step | In the paper | Function |
 | :--- | :--- | :--- |
-| segments per packet: `N = ceil(S_i / (S_k - h))`, `h` the RLC header | (2) | `NumSegments` |
-| per-TB error target: `E^tb = 1 - (1 - E_i)^(1/N)` | (3) | `PerTbErrorTarget` |
-| attempts: smallest `A` with `BLER^A <= E^tb`, rejected if `A > A^max` | (4) | `RequiredAttempts` |
-| worst-case time: `C = A * t_tx` (`t_tx = TTI + k1`), rejected if `C + t_up > D_i` | (5) | `Wctt`, `EnumerateConfigurations` |
-| keep configurations no other one beats on all of (N, A, B) | (6) | `ParetoFilter` |
+| segments per packet: `N = ceil(S_i / (S_k - h))`, `h` the RLC header | Section V-A | `NumSegments` |
+| per-TB error target: `E^tb = 1 - (1 - E_i)^(1/N)` | Eq. (1) | `PerTbErrorTarget` |
+| attempts: smallest `A` with `BLER^A <= E^tb`, rejected if `A > A^max` | Eq. (2) | `RequiredAttempts` |
+| worst-case time: `C = A * t_tx` (`t_tx = TTI + k1`), rejected if `C + t_up > D_i` | Section V-C | `Wctt`, `EnumerateConfigurations` |
+| keep configurations no other one beats on all of (N, A, B) | Eq. (3) | `ParetoFilter` |
 
 `ParetoFilter` also collapses configurations equal on all of `(N, A, B)` to
 the one with the lowest BLER, since the scheduler cannot tell them apart. The
@@ -157,7 +157,7 @@ decides many. To compare on the same denominator, the environment variable
 │   └── siren/   planner_report.json -> schedule tables (Section VI), Gurobi
 ├── baseline_algorithms/    rr, pf, qospf, must + common/
 ├── analysis/               verdict reduction, paper table, figures and macros, RQ4
-├── results/                will hold the paper's results
+├── results/                the paper's results: CSVs, table, figures, macros, RQ4 models
 ├── bler/                   link-level BLER simulation -> MCS table
 ├── scripts/                build, the paper's experiments, catalogue check
 ├── output/                 flowsets (tracked) and run outputs (ignored by git)

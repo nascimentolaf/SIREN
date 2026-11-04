@@ -15,8 +15,7 @@ differs from what one would expect.
 
 ## Code that names programs not in this repository
 
-The code was written alongside other tools, which this repository does not
-include. The code that refers to them was left unchanged:
+Some code refers to other tools, which this repository does not include:
 
 - **`analysis/rq4_hyperperiod.py run --solver`** defaults to a solver binary
   that is not shipped: always pass `--solver offline_phase/siren/siren`,
@@ -29,8 +28,29 @@ include. The code that refers to them was left unchanged:
   [Configuration](configuration.md#inputs-and-outputs).
 - **`analysis/collect_verdicts.py --per-config`** reads the CSV of a
   per-configuration sweep that is not shipped.
+- **`analysis/plot_paper.py --partial --copy`** runs a script that is not
+  shipped; `run_paper_experiment.sh` does not use it.
 - **The analysis code knows the methods `edf`, `5gtps` and `5gtps_harq`**
   (labels, colours, macros). Runs of this repository have no such rows.
+
+## Equation numbers in the code
+
+Comments and a few messages in the code number the paper's equations
+differently from the paper. To read them:
+
+| In the code | In the paper | What |
+| :--- | :--- | :--- |
+| Eq. (2) | Section V-A | segments per packet, `N` |
+| Eq. (3) | Eq. (1) | per-TB error target, `E^tb` |
+| Eq. (4) | Eq. (2) | attempts, `A` |
+| Eq. (5) | Section V-C | worst-case time `C`, and the check `C + t_up <= D` |
+| Eq. (6) | Eq. (3) | Pareto set, `P_i` |
+| Eqs. (7) to (10) | Eqs. (4) to (7) | the ILP's constraints |
+| Eqs. (11), (12) | Eq. (8) | the `harq` objective |
+| Eqs. (13), (14) | Eq. (9) | the `rb_peak` objective |
+
+The code's `baseline_algorithms/must/` and `baseline_algorithms/qospf/` also cite
+the equations of the MUST and QoS-PF papers, as their pages do.
 
 ## Behaviours to keep in mind when reading results
 

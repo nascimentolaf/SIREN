@@ -26,8 +26,8 @@ The planner fails with a clear message when a required variable is missing.
 | `TTI` | `0.00025` | **seconds** | planner, baselines; passed to `siren` as `--tti` in ms | transmission time interval (0.25 ms, 60 kHz SCS) |
 | `FEEDBACK_PER_RET` | `3 * TTI` | **seconds** | planner (required), baselines (default `3*TTI`) | `k1`, HARQ feedback delay per attempt; `t_tx = TTI + FEEDBACK_PER_RET` |
 | `UPPER_LAYER_DELAY` | `0.004` | **seconds** | planner (written to its report as `t_up_ms`, which `siren` reads), baselines | `t_up`, the time a packet spends in the other layers (UE + gNB processing). It holds neither a HARQ process nor RBs, but counts towards the deadline: a packet is delivered `t_up` after its last TB ends |
-| `A_MAX` | `4` | attempts | planner, baselines | `A^max`, the layer-wide cap on HARQ attempts (Eq. (4)) |
-| `RLC_HEADER_BYTES` | `8` | bytes | planner, baselines | RLC header carried by every segment (Eq. (2)); must be below the smallest TB size |
+| `A_MAX` | `4` | attempts | planner, baselines | `A^max`, the layer-wide cap on HARQ attempts (Section IV-B) |
+| `RLC_HEADER_BYTES` | `8` | bytes | planner, baselines | RLC header carried by every segment (Section V-A); must be below the smallest TB size |
 | `SINR_DB` | `10` | dB | planner, every baseline, the analysis scripts' reliability check | keeps only the MCS-table rows whose `sinr` equals this value, and fails if none do. `input/mcs_configurations.json` holds one SINR (10 dB) |
 
 With the defaults one HARQ attempt costs `t_tx = 1 ms`, so a TB needing `A`
@@ -67,7 +67,7 @@ What `run_paper_experiment.sh` passes to `siren`:
 
 | Variable | Value in the paper's runs | Passed as | Meaning |
 | :--- | :--- | :--- | :--- |
-| `ILP_OBJECTIVE` | `rb_peak` (fixed) | `--objective` | `feasibility` (any table), `rb_peak` (minimise peak RB usage, Eqs. (13) and (14)) or `harq` (minimise HARQ processes used, Eqs. (11) and (12)) |
+| `ILP_OBJECTIVE` | `rb_peak` (fixed) | `--objective` | `feasibility` (any table), `rb_peak` (minimise peak RB usage, Eq. (9)) or `harq` (minimise HARQ processes used, Eq. (8)) |
 | `ILP_RB_PEAK_SEARCH` | `bounded` (fixed) | `--rb-peak-search` | `rb_peak` only. `bounded`: decide every candidate for feasibility, then minimise the peak over the schedulable ones in ascending mean-RB order, stopping at a provable bound. `full`: minimise the peak on every candidate |
 | `ILP_TIMEOUT` | `0` (fixed) | `--timeout` | seconds for one flowset's **whole** candidate sweep. `0` = no flowset budget |
 | `ILP_CANDIDATE_TIMEOUT` | `60` | `--candidate-timeout` | seconds for **one** candidate. When it runs out that candidate is skipped and the sweep continues. `0` = no cap |

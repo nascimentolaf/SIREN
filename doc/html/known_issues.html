@@ -53,8 +53,7 @@ differs from what one would expect.</p>
 </tbody>
 </table>
 </div><h2 id="code-that-names-programs-not-in-this-repository">Code that names programs not in this repository<a class="headerlink" href="#code-that-names-programs-not-in-this-repository" title="Link to this section">#</a></h2>
-<p>The code was written alongside other tools, which this repository does not
-include. The code that refers to them was left unchanged:</p>
+<p>Some code refers to other tools, which this repository does not include:</p>
 <ul>
 <li><strong><code>analysis/rq4_hyperperiod.py run --solver</code></strong> defaults to a solver binary
   that is not shipped: always pass <code>--solver offline_phase/siren/siren</code>,
@@ -67,9 +66,67 @@ include. The code that refers to them was left unchanged:</p>
   <a href="configuration.html#inputs-and-outputs">Configuration</a>.</li>
 <li><strong><code>analysis/collect_verdicts.py --per-config</code></strong> reads the CSV of a
   per-configuration sweep that is not shipped.</li>
+<li><strong><code>analysis/plot_paper.py --partial --copy</code></strong> runs a script that is not
+  shipped; <code>run_paper_experiment.sh</code> does not use it.</li>
 <li><strong>The analysis code knows the methods <code>edf</code>, <code>5gtps</code> and <code>5gtps_harq</code></strong>
   (labels, colours, macros). Runs of this repository have no such rows.</li>
 </ul>
+<h2 id="equation-numbers-in-the-code">Equation numbers in the code<a class="headerlink" href="#equation-numbers-in-the-code" title="Link to this section">#</a></h2>
+<p>Comments and a few messages in the code number the paper's equations
+differently from the paper. To read them:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">In the code</th>
+<th align="left">In the paper</th>
+<th align="left">What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left">Eq. (2)</td>
+<td align="left">Section V-A</td>
+<td align="left">segments per packet, <code>N</code></td>
+</tr>
+<tr>
+<td align="left">Eq. (3)</td>
+<td align="left">Eq. (1)</td>
+<td align="left">per-TB error target, <code>E^tb</code></td>
+</tr>
+<tr>
+<td align="left">Eq. (4)</td>
+<td align="left">Eq. (2)</td>
+<td align="left">attempts, <code>A</code></td>
+</tr>
+<tr>
+<td align="left">Eq. (5)</td>
+<td align="left">Section V-C</td>
+<td align="left">worst-case time <code>C</code>, and the check <code>C + t_up &lt;= D</code></td>
+</tr>
+<tr>
+<td align="left">Eq. (6)</td>
+<td align="left">Eq. (3)</td>
+<td align="left">Pareto set, <code>P_i</code></td>
+</tr>
+<tr>
+<td align="left">Eqs. (7) to (10)</td>
+<td align="left">Eqs. (4) to (7)</td>
+<td align="left">the ILP's constraints</td>
+</tr>
+<tr>
+<td align="left">Eqs. (11), (12)</td>
+<td align="left">Eq. (8)</td>
+<td align="left">the <code>harq</code> objective</td>
+</tr>
+<tr>
+<td align="left">Eqs. (13), (14)</td>
+<td align="left">Eq. (9)</td>
+<td align="left">the <code>rb_peak</code> objective</td>
+</tr>
+</tbody>
+</table>
+</div><p>The code's <code>baseline_algorithms/must/</code> and <code>baseline_algorithms/qospf/</code> also cite
+the equations of the MUST and QoS-PF papers, as their pages do.</p>
 <h2 id="behaviours-to-keep-in-mind-when-reading-results">Behaviours to keep in mind when reading results<a class="headerlink" href="#behaviours-to-keep-in-mind-when-reading-results" title="Link to this section">#</a></h2>
 <p>These are deliberate, but change how a verdict reads.</p>
 <ul>
@@ -94,7 +151,7 @@ include. The code that refers to them was left unchanged:</p>
 <p class="source">Generated from <code>doc/known_issues.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
 </footer>
 </main>
-<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#limitations">Limitations</a></li><li class="l2"><a href="#code-that-names-programs-not-in-this-repository">Code that names programs not in this repository</a></li><li class="l2"><a href="#behaviours-to-keep-in-mind-when-reading-results">Behaviours to keep in mind when reading results</a></li></ul></nav>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#limitations">Limitations</a></li><li class="l2"><a href="#code-that-names-programs-not-in-this-repository">Code that names programs not in this repository</a></li><li class="l2"><a href="#equation-numbers-in-the-code">Equation numbers in the code</a></li><li class="l2"><a href="#behaviours-to-keep-in-mind-when-reading-results">Behaviours to keep in mind when reading results</a></li></ul></nav>
 </div>
 <script src="search_index.js"></script>
 <script src="search.js"></script>

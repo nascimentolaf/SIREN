@@ -81,14 +81,14 @@ needs them exported first:</p>
 <td align="left"><code>4</code></td>
 <td align="left">attempts</td>
 <td align="left">planner, baselines</td>
-<td align="left"><code>A^max</code>, the layer-wide cap on HARQ attempts (Eq. (4))</td>
+<td align="left"><code>A^max</code>, the layer-wide cap on HARQ attempts (Section IV-B)</td>
 </tr>
 <tr>
 <td align="left"><code>RLC_HEADER_BYTES</code></td>
 <td align="left"><code>8</code></td>
 <td align="left">bytes</td>
 <td align="left">planner, baselines</td>
-<td align="left">RLC header carried by every segment (Eq. (2)); must be below the smallest TB size</td>
+<td align="left">RLC header carried by every segment (Section V-A); must be below the smallest TB size</td>
 </tr>
 <tr>
 <td align="left"><code>SINR_DB</code></td>
@@ -175,7 +175,7 @@ sets its own), <code>METHOD_VARIANTS</code>, <code>REUSE_FLOWSETS</code>, <code>
 <td align="left"><code>ILP_OBJECTIVE</code></td>
 <td align="left"><code>rb_peak</code> (fixed)</td>
 <td align="left"><code>--objective</code></td>
-<td align="left"><code>feasibility</code> (any table), <code>rb_peak</code> (minimise peak RB usage, Eqs. (13) and (14)) or <code>harq</code> (minimise HARQ processes used, Eqs. (11) and (12))</td>
+<td align="left"><code>feasibility</code> (any table), <code>rb_peak</code> (minimise peak RB usage, Eq. (9)) or <code>harq</code> (minimise HARQ processes used, Eq. (8))</td>
 </tr>
 <tr>
 <td align="left"><code>ILP_RB_PEAK_SEARCH</code></td>

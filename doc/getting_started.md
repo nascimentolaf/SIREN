@@ -88,9 +88,8 @@ OUTPUT_DIR=/tmp/first RBS=135 ./scripts/run_paper_experiment.sh \
 - `-j 2` runs two workers, so at most two `siren` processes, and two license
   tokens, at a time.
 
-Even so, a flowset has a median of 1200 candidate tuples and at most 11 000
-(as `check_catalogue.py` prints them), each allowed up to 60 s: a first run
-can take hours. Each pair's status is in
+Even so, the 1000 flowsets have a median of 1260 candidate tuples and at most
+11 000, each allowed up to 60 s: a first run can take hours. Each pair's status is in
 `/tmp/first/sweep/rb135/.parallel/status/` (`ok` when done).
 
 ## Look at the results
@@ -124,3 +123,5 @@ vocabulary is defined in [Analysis](analysis/index.md#the-verdict-table).
 - [Analysis](analysis/index.md): from reports to the paper's table, figures
   and macros.
 - `RUN_EXPERIMENTS.md`: the paper's runs, step by step.
+- `results/README.md`: the paper's results, and where each of its numbers comes
+  from.

@@ -58,8 +58,7 @@ them come from the scheduling policy.</p>
 </tr>
 </tbody>
 </table>
-</div><p>The default <code>METHODS</code> in <code>parameters.sh</code> runs <code>rr pf qospf must</code> alongside
-the ILP.</p>
+</div><p><code>run_paper_experiment.sh</code> runs the four alongside the ILP (its <code>METHODS</code>).</p>
 <h2 id="build">Build<a class="headerlink" href="#build" title="Link to this section">#</a></h2>
 <pre><code class="language-bash">cd baseline_algorithms
 make            # all four, each to &lt;name&gt;/&lt;name&gt;
@@ -167,7 +166,7 @@ in <a href="../configuration.html">Configuration</a>.</p>
 <code>select_flow_config()</code> (<code>common/scheduler.cpp</code>).</p>
 <ol>
 <li>Run Section V (<code>urllc::SelectConfigurations</code>) with <code>enforceLimits = false</code>:
-   Eqs. (2), (3) and (4) are applied, but the <code>C + t_up &lt;= D</code> check is
+   the segmentation of Section V-A and Eqs. (1) and (2) are applied, but the <code>C + t_up &lt;= D</code> check is
    <strong>not</strong>: that screen is part of the contribution under evaluation, so a
    baseline does not get it. Attempts are not capped at this step either. Then
    Pareto-filter.</li>

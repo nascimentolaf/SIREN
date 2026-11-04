@@ -69,39 +69,39 @@ a schedule for <code>[0, H)</code> can be replayed forever.</p>
 <code>B^max</code>; see <a href="scripts.html">Scripts</a>.</p>
 <h2 id="configuration-selection-is-shared-section-v">Configuration selection is shared (Section V)<a class="headerlink" href="#configuration-selection-is-shared-section-v" title="Link to this section">#</a></h2>
 <p>Every component that turns a flow into transport blocks uses <strong>one</strong>
-implementation of Eqs. (2) to (6), the header-only <code>common/urllc_config.hpp</code>:</p>
+implementation of Section V, the header-only <code>common/urllc_config.hpp</code>:</p>
 <div class="table-wrap"><table>
 <thead>
 <tr>
 <th align="left">Step</th>
-<th align="left">Equation</th>
+<th align="left">In the paper</th>
 <th align="left">Function</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td align="left">segments per packet: <code>N = ceil(S_i / (S_k - h))</code>, <code>h</code> the RLC header</td>
-<td align="left">(2)</td>
+<td align="left">Section V-A</td>
 <td align="left"><code>NumSegments</code></td>
 </tr>
 <tr>
 <td align="left">per-TB error target: <code>E^tb = 1 - (1 - E_i)^(1/N)</code></td>
-<td align="left">(3)</td>
+<td align="left">Eq. (1)</td>
 <td align="left"><code>PerTbErrorTarget</code></td>
 </tr>
 <tr>
 <td align="left">attempts: smallest <code>A</code> with <code>BLER^A &lt;= E^tb</code>, rejected if <code>A &gt; A^max</code></td>
-<td align="left">(4)</td>
+<td align="left">Eq. (2)</td>
 <td align="left"><code>RequiredAttempts</code></td>
 </tr>
 <tr>
 <td align="left">worst-case time: <code>C = A * t_tx</code> (<code>t_tx = TTI + k1</code>), rejected if <code>C + t_up &gt; D_i</code></td>
-<td align="left">(5)</td>
+<td align="left">Section V-C</td>
 <td align="left"><code>Wctt</code>, <code>EnumerateConfigurations</code></td>
 </tr>
 <tr>
 <td align="left">keep configurations no other one beats on all of (N, A, B)</td>
-<td align="left">(6)</td>
+<td align="left">Eq. (3)</td>
 <td align="left"><code>ParetoFilter</code></td>
 </tr>
 </tbody>
@@ -213,7 +213,7 @@ decides many. To compare on the same denominator, the environment variable
 │   └── siren/   planner_report.json -&gt; schedule tables (Section VI), Gurobi
 ├── baseline_algorithms/    rr, pf, qospf, must + common/
 ├── analysis/               verdict reduction, paper table, figures and macros, RQ4
-├── results/                will hold the paper's results
+├── results/                the paper's results: CSVs, table, figures, macros, RQ4 models
 ├── bler/                   link-level BLER simulation -&gt; MCS table
 ├── scripts/                build, the paper's experiments, catalogue check
 ├── output/                 flowsets (tracked) and run outputs (ignored by git)

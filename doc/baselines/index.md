@@ -13,8 +13,7 @@ them come from the scheduling policy.
 | `qospf` | QoS-aware PF (Seliem et al., MSWiM 2025): delay, GBR deficit and 5QI priority over average rate | QoS-weighted fairness | [QoS-PF](qospf.md) |
 | `must` | MUST (Khorov et al., TMC 2021): deadline-ordered look-ahead with drops | URLLC, deadline-aware | [MUST](must.md) |
 
-The default `METHODS` in `parameters.sh` runs `rr pf qospf must` alongside
-the ILP.
+`run_paper_experiment.sh` runs the four alongside the ILP (its `METHODS`).
 
 ## Build
 
@@ -80,7 +79,7 @@ Every baseline picks **one** configuration per flow through
 `select_flow_config()` (`common/scheduler.cpp`).
 
 1. Run Section V (`urllc::SelectConfigurations`) with `enforceLimits = false`:
-   Eqs. (2), (3) and (4) are applied, but the `C + t_up <= D` check is
+   the segmentation of Section V-A and Eqs. (1) and (2) are applied, but the `C + t_up <= D` check is
    **not**: that screen is part of the contribution under evaluation, so a
    baseline does not get it. Attempts are not capped at this step either. Then
    Pareto-filter.

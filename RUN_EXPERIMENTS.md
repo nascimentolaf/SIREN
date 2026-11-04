@@ -113,20 +113,23 @@ Its four stages, in order:
 | time per ILP tuple | 60 s (wall-clock) |
 | time per flowset | no limit |
 | Gurobi threads | 1 (set in `siren`) |
-| RQ4 | 100 flowsets, at 135 RBs, 1 h (3600 s) per model; the models above 8400 ms are solved 12 at a time, since each needs several GB |
+| optimality gap | 0 (`MIPGap` and `MIPGapAbs`, set in `siren`) |
+| RQ4 | 100 flowsets, at 135 RBs, under the feasibility objective, 1 h (3600 s) per model; `-j` models at a time up to `H*` = 8400 ms, then 12 at a time (`RQ4_JOBS_LARGE`), since each of the larger models needs several GB |
 
 The rest comes from `scripts/parameters.sh` (TTI 0.25 ms, upper-layer delay
 4 ms, `A^max = 4`, the QoS-PF and PF parameters, …). The script's header lists
 the variables that override its settings: they are meant for tests only, and a
-run that uses them does not reproduce the paper.
+run that uses them does not reproduce the paper. The paper's run used `-j 50`
+on each of two servers (`--shard`, step 5); `results/README.md` describes it.
 
 **Cost.** This guide does not estimate how long the run takes on your
 machine. What bounds it, per budget and per flowset, is the number of tuples
 SIREN decides, each within 60 s of wall-clock time, followed by the peak search
-over the schedulable tuples; `check_catalogue.py` prints the tuples per
-flowset (a median of 1200 and at most 11 000 for the shipped catalogue). RQ4
-adds at most 500 models (100 flowsets, 5 hyperperiods), of at most 1 h each. The baselines take a negligible time next
-to the ILP.
+over the schedulable tuples. The 1000 flowsets have a median of 1260 tuples and
+at most 11 000 (`MedianTuples` and `MaxTuples` in
+`results/figures/numbers_results.tex`). RQ4 adds at most 500 models (100
+flowsets, 5 hyperperiods), of at most 1 h each. The baselines take a negligible
+time next to the ILP.
 
 ## 5. Resume, stages, flowsets, shards
 
@@ -193,14 +196,36 @@ done; every shard solves its share of the pairs and of the RQ4 models. The
 
 `doc/analysis/index.md` describes each CSV, figure and macro.
 
-**Comparing with the paper's results.** `results/` will hold the outputs of
-the paper's run, with a README that says what each file holds. Compare
-`analysis/csv/` and `analysis/figures/paper/` with them. What to expect:
+**Comparing with the paper's results.** `results/` holds the outputs of the
+paper's run, and [`results/README.md`](results/README.md) says what each file
+holds. A new run writes into `output/` and `analysis/`, which git ignores, and
+leaves `results/` as it is. After a run of all the stages:
 
-- the baselines are deterministic: their verdicts and peaks must match the
-  paper's exactly;
+```bash
+# the macros and the table
+diff analysis/figures/paper/numbers_results.tex results/figures/numbers_results.tex
+diff analysis/figures/paper/table_rq2.tex results/figures/table_rq2.tex
+# the verdict tables, baselines only: every column of every row
+for b in 51 79 107 135; do
+    diff <(grep -v ',ilp,' analysis/csv/output_rb$b.csv) <(grep -v ',ilp,' results/csv/output_rb$b.csv)
+done
+```
+
+What to expect:
+
+- the baselines are deterministic: their rows must match the paper's exactly;
 - SIREN's results can differ where a tuple is near the 60 s cap, which is
   wall-clock time: such a tuple may be decided on one machine and not on
   another, which can change a verdict (undecided against schedulable or
-  unschedulable) or a peak;
-- every time (per tuple, first table, RQ4) is a measurement on your machine.
+  unschedulable) or a peak. Its rows hold solving times too
+  (`solve_time_ms_median`, `solve_time_ms_max`), so compare their `verdict` and
+  `rb_peak`, not the whole row;
+- every time (per tuple, first table, RQ4) is a measurement on your machine, so
+  the macros that hold times differ, and with them `numbers_results.tex`;
+- `host` holds your machine's name, where `results/` has `server1` or `server2`;
+- RQ4's `prepare` draws from the flowsets SIREN schedules at 135 RBs and takes
+  their minimum-peak tuple, so the `H*.json` of `output/rq4_siren/` match
+  `results/rq4_models/` when the sweep's reports agree on these.
+
+To check the paper's numbers without running anything, regenerate them from
+`results/csv/` as `results/README.md` says.

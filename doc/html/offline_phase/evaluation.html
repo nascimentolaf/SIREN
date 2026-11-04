@@ -185,22 +185,22 @@ occupies its process and <code>B_j</code> RBs during <code>[t, t + C_j)</code> o
 <tbody>
 <tr>
 <td align="left">assignment</td>
-<td align="left">(7)</td>
+<td align="left">(4)</td>
 <td align="left">every job starts exactly once</td>
 </tr>
 <tr>
 <td align="left">HARQ capacity</td>
-<td align="left">(8)</td>
+<td align="left">(5)</td>
 <td align="left">at most one job runs on a process at any TTI</td>
 </tr>
 <tr>
 <td align="left">RB capacity</td>
-<td align="left">(9)</td>
+<td align="left">(6)</td>
 <td align="left">the RBs of the jobs running at any TTI total at most <code>B^max</code></td>
 </tr>
 <tr>
 <td align="left">symmetry breaking</td>
-<td align="left">(10)</td>
+<td align="left">(7)</td>
 <td align="left">within one release of one flow, segment <code>a</code> starts no later than segment <code>a+1</code></td>
 </tr>
 </tbody>
@@ -209,7 +209,7 @@ occupies its process and <code>B_j</code> RBs during <code>[t, t + C_j)</code> o
 <thead>
 <tr>
 <th align="left">Objective</th>
-<th align="left">Equations</th>
+<th align="left">Equation</th>
 <th align="left">Adds</th>
 </tr>
 </thead>
@@ -221,12 +221,12 @@ occupies its process and <code>B_j</code> RBs during <code>[t, t + C_j)</code> o
 </tr>
 <tr>
 <td align="left"><code>harq</code></td>
-<td align="left">(11) and (12)</td>
+<td align="left">(8)</td>
 <td align="left">one binary per process; minimises the number of processes used; reports <code>harq_used</code></td>
 </tr>
 <tr>
 <td align="left"><code>rb_peak</code></td>
-<td align="left">(13) and (14)</td>
+<td align="left">(9)</td>
 <td align="left">an integer peak <code>P &lt;= B^max</code> bounding every TTI's usage; minimises it; reports <code>rb_peak_used</code></td>
 </tr>
 </tbody>
@@ -234,8 +234,8 @@ occupies its process and <code>B_j</code> RBs during <code>[t, t + C_j)</code> o
 </div><p>Because of the shared RB constraint, the table is not the schedule of any
 fixed-priority or EDF rule: the solver may delay a job that a priority rule
 would start. Treat the table itself as the schedule.</p>
-<p>The formulation is written up in LaTeX in <code>src/latex/</code> (<code>main.tex</code>,
-<code>sysmodel.tex</code>, and the compiled <code>main.pdf</code>).</p>
+<p>The formulation is written up in LaTeX in <code>src/latex/</code> (<code>main.tex</code> and
+<code>sysmodel.tex</code>).</p>
 <h3 id="solver-settings-and-outcomes">Solver settings and outcomes<a class="headerlink" href="#solver-settings-and-outcomes" title="Link to this section">#</a></h3>
 <p>Set once on the Gurobi environment, so every model inherits them:</p>
 <div class="table-wrap"><table>
@@ -358,7 +358,7 @@ peak on every candidate directly.</p>
 </ul>
 <p>Both formats are specified in <a href="../output_formats.html">Output formats</a>.</p>
 <h2 id="checking-a-table-independently">Checking a table independently<a class="headerlink" href="#checking-a-table-independently" title="Link to this section">#</a></h2>
-<p><code>validate_schedule.py</code> re-checks dispatch tables against constraints (7) to (10)
+<p><code>validate_schedule.py</code> re-checks dispatch tables against constraints (4) to (7)
 from the <code>*_tti</code> fields alone, without the solver: every release of every flow
 holds each of its subtasks exactly once, every TB ends <code>config.t_up_tti</code> before
 its deadline, no process runs two TBs at once, the RBs never exceed <code>B^max</code>,
@@ -369,7 +369,7 @@ and segments start in order:</p>
 <p>With no argument it checks <code>schedules/*.json</code>.</p>
 <h2 id="cost">Cost<a class="headerlink" href="#cost" title="Link to this section">#</a></h2>
 <p>The sweep, not a single ILP, dominates the offline cost: a flowset is one
-independent ILP per candidate, a median of 1200 for the shipped catalogue
+independent ILP per candidate, a median of 1260 on the 1000 flowsets
 (see <a href="../input.html#the-catalogue">Inputs</a>). A single model is small
 (variables are <code>O(jobs × M × window)</code>), but a candidate the solver cannot settle
 can take its whole cap. The 0.25 ms TTI multiplies the hyperperiod and every

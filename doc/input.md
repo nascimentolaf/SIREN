@@ -67,14 +67,16 @@ Every application is feasible on its own; the worst-case transmission time of
 any retained configuration is 4 ms (`A^max = 4`, `t_tx = 1 ms`), to which the
 upper-layer delay `t_up = 4 ms` adds towards the deadline (it holds no HARQ
 process or RB).
-A flowset of four draws a median of 1200 and at most 11 000 candidate
-configurations for the ILP. `C(30, 4) = 27 405`, so the 1000 flowsets are drawn
-without repetition.
+Over all `C(30, 4)` combinations, as `check_catalogue.py` prints them, a flowset
+of four has a median of 1200 and at most 11 000 candidate configurations for the
+ILP; the 1000 flowsets have a median of 1260 and at most 11 000 (`MedianTuples`
+and `MaxTuples` in `results/figures/numbers_results.tex`).
+`C(30, 4) = 27 405`, so the 1000 flowsets are drawn without repetition.
 
 ### How it is built
 
 - **Five reliability classes** (`1e-3`, `1e-4`, `1e-5`, `1e-6`, `1e-8`), the
-  classes of the paper's application table, each anchored on the 5QI row whose
+  classes of the paper's flowsets, each anchored on the 5QI row whose
   service description is closest (88 motion tracking, 82 discrete automation,
   84 intelligent transport, 85 for the two strictest classes).
 - **Deadlines 10 to 60 ms.**
@@ -165,7 +167,7 @@ simulation results in `bler/data/` (see [BLER and MCS tables](bler.md)).
 | `tbs` | transport block size, **bytes** |
 | `sinr` | SINR of the simulation, dB (the planner, the baselines and the analysis scripts keep only the tables at `SINR_DB`; see [Configuration](configuration.md#radio-and-timing-model)) |
 | `mcs[].m` | MCS index |
-| `mcs[].bler` | per-attempt error rate of a whole TB, as simulated: the value Eq. (4) uses |
+| `mcs[].bler` | per-attempt error rate of a whole TB, as simulated: the value Eq. (2) uses |
 | `mcs[].b` | resource blocks per attempt |
 
 The shipped table has one SINR (10 dB) and four sizes: 66 B (29 MCS rows),
@@ -177,7 +179,7 @@ Rows whose BLER is outside `(0, 1)` are dropped at generation time.
 
 **Retired format.** A table bucketed by decade error targets
 (`configurations` → `error` → `mkb: [{m, k, b}]`, `k` a precomputed attempt
-count) would force the planner to round its Eq. (3) target to a decade, which
+count) would force the planner to round its Eq. (1) target to a decade, which
 relaxes reliability targets by 2 to 3× for `N = 2` and `N = 3`. The planner and
 the baselines reject that format with a message pointing at the generator.
 `bler/mcs_configurations/mcs_configurations.json` is a file **in the

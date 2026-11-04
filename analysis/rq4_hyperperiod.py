@@ -10,7 +10,7 @@ models.
   * Configuration: by default (--tuple sweep) the tuple the RB-budget sweep
     proved schedulable for the flowset, its minimum-peak table (the one
     collect_verdicts.py reports), read from the sweep's ILP report at one
-    budget (--reports: rb51, the budget complete first); only flowsets with
+    budget (--reports, default rb51; run_paper_experiment.sh passes rb135); only flowsets with
     such a table are sampled, so RQ4 times building a table. The instance
     records that budget (n_rb), and run solves it there, so the RB limit is as
     tight as where the tuple was proved. --tuple lowest-mean takes instead

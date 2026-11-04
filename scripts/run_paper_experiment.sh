@@ -56,7 +56,7 @@
 # Every stage refuses a tree whose ILP reports or RQ4 results were not written
 # by siren: use another OUTPUT_DIR for those of another solver.
 #
-# Settings (the paper's Table I; override in the environment for tests only):
+# Settings (the paper's Table III; override in the environment for tests only):
 #   RBS="51 79 107 135"  HARQs=3  ILP_CANDIDATE_TIMEOUT=60
 #   METHODS="ilp must qospf rr pf" (ilp: the ILP of SIREN, solved by siren)
 #   RQ4_SAMPLE=100  RQ4_CAP=3600  RQ4_SPLIT_H=8400  RQ4_JOBS_LARGE=12

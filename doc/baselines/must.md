@@ -8,7 +8,7 @@ framework's job model. Not an official release; only the scheduler is
 implemented (not the paper's traffic model nor its priority groups). Method
 authors: Khorov, Krasilov, Selnitskiy, Akyildiz.
 
-Source: `baseline_algorithms/must/main.cpp`. Shared behaviour is described in
+Source: `baseline_algorithms/must/` (`main.cpp`, `must.hpp`, `must.cpp`). Shared behaviour is described in
 [Baselines](index.md).
 
 ## The algorithm in the paper

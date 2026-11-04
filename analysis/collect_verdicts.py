@@ -60,7 +60,7 @@ Usage:
     python3 collect_verdicts.py --reports output/reports \\
                                 --flowsets output/flowsets \\
                                 --mcs input/mcs_configurations.json \\
-                                --out results/verdicts.csv [--per-report]
+                                --out verdicts.csv [--per-report]
 
 `--merge` updates an existing CSV instead of replacing it: the rows of the
 methods found under --reports are rewritten, every other row is kept as it

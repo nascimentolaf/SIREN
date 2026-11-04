@@ -8,8 +8,9 @@ nothing here runs a scheduler or changes a result.
     analysis/csv/derived_baseline_configs.csv   attempts each baseline committed to
     analysis/csv/derived_ilp_timing_rb135.csv   ILP per-flowset solving time
 
-The two derived tables are extracted once from output/sweep/ (`--derive`) and
-committed, so the figures regenerate without the ~8 GB report tree:
+The two derived tables are extracted once from output/sweep/ (`--derive`), so
+the figures regenerate without the ~8 GB report tree (results/csv/ holds the
+paper's):
 
   * baseline configs: the baselines select their configuration from the
     unscreened set (baseline_algorithms/common: enforceLimits=false), bounded
@@ -111,7 +112,7 @@ TPS_DIRECT_LABEL = "5G-TPS,\n$M\\geq$#TBs"
 A_MAX = 4
 CAP_S = 60.0                      # the sweep's ILP_CANDIDATE_TIMEOUT, s
 
-CSV_DIR = HERE / "csv"            # every committed result table
+CSV_DIR = HERE / "csv"            # every result table
 CONFIGS_CSV = CSV_DIR / "derived_baseline_configs.csv"
 TIMING_CSV = CSV_DIR / f"derived_ilp_timing_rb{MAIN_BUDGET}.csv"
 # RQ4: one ILP model per (flowset, stretched hyperperiod), from

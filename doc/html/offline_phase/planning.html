@@ -93,17 +93,17 @@ both converted to ms: 1 ms and 4 ms with the defaults.</p>
 <h2 id="what-it-computes">What it computes<a class="headerlink" href="#what-it-computes" title="Link to this section">#</a></h2>
 <p>For every flow and every (TB size, MCS row) of the table:</p>
 <ol>
-<li><code>N = ceil(S_i / (TBS - RLC_HEADER_BYTES))</code> segments (Eq. (2)); a TB size
+<li><code>N = ceil(S_i / (TBS - RLC_HEADER_BYTES))</code> segments (Section V-A); a TB size
    that leaves no payload is skipped.</li>
-<li>Per-TB target <code>E^tb = 1 - (1 - E_i)^(1/N)</code> (Eq. (3)).</li>
+<li>Per-TB target <code>E^tb = 1 - (1 - E_i)^(1/N)</code> (Eq. (1)).</li>
 <li>Attempts: the smallest <code>A</code> with <code>BLER^A &lt;= E^tb</code>; rejected if <code>A &gt; A_MAX</code>
-   (Eq. (4)).</li>
+   (Eq. (2) and Section IV-B).</li>
 <li><code>C = A * t_tx</code>, how long a TB holds its HARQ process and RBs; rejected if
-   <code>C + t_up &gt; D_i</code> (Eq. (5)): the upper-layer delay holds neither, but a
+   <code>C + t_up &gt; D_i</code> (Section V-C): the upper-layer delay holds neither, but a
    packet is delivered only <code>t_up</code> after its last TB ends.</li>
 </ol>
 <p>The survivors are counted as <code>num_feasible</code>. They are then reduced to the
-Pareto set <code>P_i</code> over <code>(N, A, B)</code> (Eq. (6)), after first collapsing
+Pareto set <code>P_i</code> over <code>(N, A, B)</code> (Eq. (3)), after first collapsing
 configurations equal on all three to the one with the lowest BLER, and counted
 as <code>num_pareto</code>.</p>
 <p>A flow with an empty <code>P_i</code> makes the flowset infeasible. The planner reports
@@ -166,7 +166,7 @@ ILP consumes. Real excerpt (<code>flowset_0001</code>, default parameters):</p>
 </tr>
 <tr>
 <td align="left"><code>.tb_error</code></td>
-<td align="left"><code>E^tb</code> of Eq. (3) for this <code>N</code></td>
+<td align="left"><code>E^tb</code> of Eq. (1) for this <code>N</code></td>
 </tr>
 <tr>
 <td align="left"><code>.mbc_combinations[]</code></td>

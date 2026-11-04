@@ -105,7 +105,7 @@ python mcs_configurations/generate_mcs_configurations.py \
     data/jakes_66_mcs_bler_results_10.0.json data/jakes_129_mcs_bler_results_10.0.json \
     data/jakes_261_mcs_bler_results_10.0.json data/jakes_469_mcs_bler_results_10.0.json \
     --output mcs_configurations.json
-cp mcs_configurations.json ../../input/mcs_configurations.json
+cp mcs_configurations.json ../input/mcs_configurations.json
 ```
 
 - TBS and SINR are read from the **file name**, which must match
@@ -113,7 +113,7 @@ cp mcs_configurations.json ../../input/mcs_configurations.json
 - The BLER is copied as simulated: `bler_core.py` encodes the whole TB and
   counts an error when its TB CRC fails, so it is already the rate at which
   one transmission of the whole TB is not decoded. Splitting a packet into
-  several TBs is the planner's business, through Eq. (3) with the flow's own
+  several TBs is the planner's business, through Eq. (1) with the flow's own
   `N`.
 - Rows whose `bler` is not in `(0, 1)` are dropped: those MCS never decode, or
   never fail within the simulation's precision.

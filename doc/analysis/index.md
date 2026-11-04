@@ -4,7 +4,9 @@
 paper's table, figures and LaTeX macros. Where `run_paper_experiment.sh`
 produces reports, these scripts reduce them to **one row per (method,
 flowset)**, so the methods can be compared. Nothing here runs a scheduler,
-except `rq4_hyperperiod.py run`, which solves the RQ4 models with `siren`.
+except `rq4_hyperperiod.py run`, which solves the RQ4 models with `siren`. The
+CSVs, table, figures and macros of the paper's run are in `results/`, at the
+repository root (`results/README.md`).
 
 The distinction everything here is built on: **how a method arrives at "this
 flowset is fine"**.
@@ -171,7 +173,9 @@ QoS-PF, RR, PF).
 | `fig_rq4_hyperperiod` | RQ4: time to decide one ILP model against its hyperperiod, log-log; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod and the time limit |
 | `numbers_results.tex` | `\newcommand` macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also `\RqFourModels`, `\RqFourFlowsets`, `\RqFourCapSec` and, per target hyperperiod spelled out digit by digit (`TwoFiveTwoZeroZero` for 25200), `\RqFourMedianSec…`, `\RqFourTimeoutShare…`, `\RqFourMedianJobs…` and `\RqFourMedianBinaries…` |
 
-Each figure is written as `.pdf` and `.png`. Options: `--outdir` (default
+The paper prints `table_rq2.tex` (its Table IV), `fig_rq3_rb_usage` and
+`fig_rq4_hyperperiod`, and quotes the macros. Each figure is written as `.pdf`
+and `.png`. Options: `--outdir` (default
 `analysis/figures/paper`), `--width`/`--height` (inches, 1.7 × 1.45),
 `--fontsize` (7), `--formats` (`pdf png`).
 
@@ -243,7 +247,7 @@ python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis 
 
 The first `run` solves the models up to 8400 ms, the second the larger ones
 (the models already solved are skipped), fewer at a time since each needs
-several GB. Always pass `--solver`: its default names a binary this repository
+several GB. The paper's run used `-j 50` per server. Always pass `--solver`: its default names a binary this repository
 does not ship.
 
 `run` solves the largest models first and records, per model, the outcome,

@@ -35,6 +35,7 @@ committed flowsets to the table, figures and macros.
 | :--- | :--- |
 | install the requirements and build | [Getting started](getting_started.md) |
 | reproduce the paper's results | the run guide, `RUN_EXPERIMENTS.md` at the repository root |
+| check the paper's numbers | `results/README.md` at the repository root |
 | understand how the pieces fit and what they promise | [Architecture](architecture.md) |
 | change a parameter (RBs, HARQs, timeouts…) | [Configuration](configuration.md) |
 | change or understand the applications and the MCS table | [Inputs](input.md) |
@@ -59,8 +60,9 @@ committed flowsets to the table, figures and macros.
 
 ## Conventions used in these pages
 
-- **Section and equation numbers** (Section V, Eq. (4), …) refer to the
-  paper, which the code comments cite the same way.
+- **Section and equation numbers** (Section V, Eq. (2), …) refer to the
+  paper. The code's comments number the equations differently; see
+  [Known issues](known_issues.md#equation-numbers-in-the-code).
 - **Equations** are written in plain text: `E^tb = 1 - (1 - E_i)^(1/N)` means
   E superscript tb, `E_i` means E subscript i.
 - **Paths** are relative to the repository root unless stated otherwise.

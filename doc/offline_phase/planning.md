@@ -39,17 +39,17 @@ both converted to ms: 1 ms and 4 ms with the defaults.
 
 For every flow and every (TB size, MCS row) of the table:
 
-1. `N = ceil(S_i / (TBS - RLC_HEADER_BYTES))` segments (Eq. (2)); a TB size
+1. `N = ceil(S_i / (TBS - RLC_HEADER_BYTES))` segments (Section V-A); a TB size
    that leaves no payload is skipped.
-2. Per-TB target `E^tb = 1 - (1 - E_i)^(1/N)` (Eq. (3)).
+2. Per-TB target `E^tb = 1 - (1 - E_i)^(1/N)` (Eq. (1)).
 3. Attempts: the smallest `A` with `BLER^A <= E^tb`; rejected if `A > A_MAX`
-   (Eq. (4)).
+   (Eq. (2) and Section IV-B).
 4. `C = A * t_tx`, how long a TB holds its HARQ process and RBs; rejected if
-   `C + t_up > D_i` (Eq. (5)): the upper-layer delay holds neither, but a
+   `C + t_up > D_i` (Section V-C): the upper-layer delay holds neither, but a
    packet is delivered only `t_up` after its last TB ends.
 
 The survivors are counted as `num_feasible`. They are then reduced to the
-Pareto set `P_i` over `(N, A, B)` (Eq. (6)), after first collapsing
+Pareto set `P_i` over `(N, A, B)` (Eq. (3)), after first collapsing
 configurations equal on all three to the one with the lowest BLER, and counted
 as `num_pareto`.
 
@@ -100,7 +100,7 @@ ILP consumes. Real excerpt (`flowset_0001`, default parameters):
 | `applications[].feasible`, `num_feasible`, `num_pareto` | `P_i` non-empty; configurations passing both screens; size of `P_i` |
 | `segmentation_options[]` | one per distinct `(num_segments, tbs)` in `P_i` |
 | `.payload_per_segment` | `tbs - RLC_HEADER_BYTES` |
-| `.tb_error` | `E^tb` of Eq. (3) for this `N` |
+| `.tb_error` | `E^tb` of Eq. (1) for this `N` |
 | `.mbc_combinations[]` | the configurations of `P_i` at this segmentation: MCS `m`, RBs per attempt `b`, attempts `a`, WCTT `c = a * t_tx` in ms (the HARQ process and RBs held, without `t_up`), per-attempt `bler` |
 | `num_infeasible_flows` | number of flows with an empty `P_i` |
 

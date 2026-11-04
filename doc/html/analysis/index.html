@@ -21,7 +21,9 @@
 paper's table, figures and LaTeX macros. Where <code>run_paper_experiment.sh</code>
 produces reports, these scripts reduce them to <strong>one row per (method,
 flowset)</strong>, so the methods can be compared. Nothing here runs a scheduler,
-except <code>rq4_hyperperiod.py run</code>, which solves the RQ4 models with <code>siren</code>.</p>
+except <code>rq4_hyperperiod.py run</code>, which solves the RQ4 models with <code>siren</code>. The
+CSVs, table, figures and macros of the paper's run are in <code>results/</code>, at the
+repository root (<code>results/README.md</code>).</p>
 <p>The distinction everything here is built on: <strong>how a method arrives at "this
 flowset is fine"</strong>.</p>
 <div class="table-wrap"><table>
@@ -364,7 +366,9 @@ QoS-PF, RR, PF).</p>
 </tr>
 </tbody>
 </table>
-</div><p>Each figure is written as <code>.pdf</code> and <code>.png</code>. Options: <code>--outdir</code> (default
+</div><p>The paper prints <code>table_rq2.tex</code> (its Table IV), <code>fig_rq3_rb_usage</code> and
+<code>fig_rq4_hyperperiod</code>, and quotes the macros. Each figure is written as <code>.pdf</code>
+and <code>.png</code>. Options: <code>--outdir</code> (default
 <code>analysis/figures/paper</code>), <code>--width</code>/<code>--height</code> (inches, 1.7 × 1.45),
 <code>--fontsize</code> (7), <code>--formats</code> (<code>pdf png</code>).</p>
 <p>Some macros, for reading <code>numbers_results.tex</code>:</p>
@@ -427,7 +431,7 @@ python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis 
 </code></pre>
 <p>The first <code>run</code> solves the models up to 8400 ms, the second the larger ones
 (the models already solved are skipped), fewer at a time since each needs
-several GB. Always pass <code>--solver</code>: its default names a binary this repository
+several GB. The paper's run used <code>-j 50</code> per server. Always pass <code>--solver</code>: its default names a binary this repository
 does not ship.</p>
 <p><code>run</code> solves the largest models first and records, per model, the outcome,
 the solving time (the time limit for a timeout), the wall time, the peak memory

@@ -115,23 +115,23 @@ occupies its process and `B_j` RBs during `[t, t + C_j)` only.
 
 | Constraint | Equation | Meaning |
 | :--- | :--- | :--- |
-| assignment | (7) | every job starts exactly once |
-| HARQ capacity | (8) | at most one job runs on a process at any TTI |
-| RB capacity | (9) | the RBs of the jobs running at any TTI total at most `B^max` |
-| symmetry breaking | (10) | within one release of one flow, segment `a` starts no later than segment `a+1` |
+| assignment | (4) | every job starts exactly once |
+| HARQ capacity | (5) | at most one job runs on a process at any TTI |
+| RB capacity | (6) | the RBs of the jobs running at any TTI total at most `B^max` |
+| symmetry breaking | (7) | within one release of one flow, segment `a` starts no later than segment `a+1` |
 
-| Objective | Equations | Adds |
+| Objective | Equation | Adds |
 | :--- | :--- | :--- |
 | `feasibility` | none | nothing: any feasible table |
-| `harq` | (11) and (12) | one binary per process; minimises the number of processes used; reports `harq_used` |
-| `rb_peak` | (13) and (14) | an integer peak `P <= B^max` bounding every TTI's usage; minimises it; reports `rb_peak_used` |
+| `harq` | (8) | one binary per process; minimises the number of processes used; reports `harq_used` |
+| `rb_peak` | (9) | an integer peak `P <= B^max` bounding every TTI's usage; minimises it; reports `rb_peak_used` |
 
 Because of the shared RB constraint, the table is not the schedule of any
 fixed-priority or EDF rule: the solver may delay a job that a priority rule
 would start. Treat the table itself as the schedule.
 
-The formulation is written up in LaTeX in `src/latex/` (`main.tex`,
-`sysmodel.tex`, and the compiled `main.pdf`).
+The formulation is written up in LaTeX in `src/latex/` (`main.tex` and
+`sysmodel.tex`).
 
 ### Solver settings and outcomes
 
@@ -202,7 +202,7 @@ Both formats are specified in [Output formats](../output_formats.md).
 
 ## Checking a table independently
 
-`validate_schedule.py` re-checks dispatch tables against constraints (7) to (10)
+`validate_schedule.py` re-checks dispatch tables against constraints (4) to (7)
 from the `*_tti` fields alone, without the solver: every release of every flow
 holds each of its subtasks exactly once, every TB ends `config.t_up_tti` before
 its deadline, no process runs two TBs at once, the RBs never exceed `B^max`,
@@ -218,7 +218,7 @@ With no argument it checks `schedules/*.json`.
 ## Cost
 
 The sweep, not a single ILP, dominates the offline cost: a flowset is one
-independent ILP per candidate, a median of 1200 for the shipped catalogue
+independent ILP per candidate, a median of 1260 on the 1000 flowsets
 (see [Inputs](../input.md#the-catalogue)). A single model is small
 (variables are `O(jobs × M × window)`), but a candidate the solver cannot settle
 can take its whole cap. The 0.25 ms TTI multiplies the hyperperiod and every

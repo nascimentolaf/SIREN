@@ -29,11 +29,9 @@ analysis/               verdict tables, the paper's table, figures and macros, R
 bler/                   link-level BLER simulation that produced the MCS table
 scripts/                build, the paper's experiments (run_paper_experiment.sh), catalogue check
 output/flowsets/        the 1000 input flowsets
+results/                the paper's results: CSVs, table, figures, macros, RQ4 models
 doc/                    documentation (Markdown), and doc/html/ (generated)
 ```
-
-`results/` will hold the paper's results: the CSVs, table, figures and macros
-its run produced.
 
 ## Documentation
 
@@ -46,6 +44,7 @@ straight from disk). Rebuild the HTML after editing the Markdown with
 | :--- | :--- |
 | [Getting started](doc/getting_started.md) | prerequisites, build, a first run |
 | [`RUN_EXPERIMENTS.md`](RUN_EXPERIMENTS.md) | reproducing the paper's results, step by step |
+| [`results/README.md`](results/README.md) | the paper's results, and where each of its numbers comes from |
 | [Architecture](doc/architecture.md) | how the pieces fit and what each method's verdict means |
 | [ILP evaluation](doc/offline_phase/evaluation.md) | `siren`: the model, its build, its Gurobi license and settings |
 | [Analysis](doc/analysis/index.md) | from reports to the paper's table, figures and macros |
@@ -83,13 +82,27 @@ python3 scripts/check_catalogue.py                 # validate the application ca
 ```
 
 `run_paper_experiment.sh` runs the RB-budget sweep (SIREN and the four
-baselines on the 1000 flowsets at 51, 79, 107 and 135 RBs, 60 s per ILP
-tuple), then RQ4, then writes the paper's table, figures and macros into
-`analysis/figures/paper/`. The run is long: a flowset has a median of 1200 ILP
-tuples and at most 11 000 (as `check_catalogue.py` prints them), each allowed
-up to 60 s. [`RUN_EXPERIMENTS.md`](RUN_EXPERIMENTS.md)
-gives every step, how to resume, run some stages or flowsets, or share the
-run between machines, and how to compare the outputs with the paper's.
+baselines on the 1000 flowsets at 51, 79, 107 and 135 RBs; for SIREN, the
+`rb_peak` objective with the bounded search, 60 s per ILP tuple, one Gurobi
+thread, a zero optimality gap, `M = 3`), then RQ4 (100 flowsets at 135 RBs,
+1 h per model), then writes the paper's table, figures and macros into
+`analysis/figures/paper/`. The run is long: the 1000 flowsets have a median of
+1260 ILP tuples and at most 11 000, each allowed up to 60 s.
+[`RUN_EXPERIMENTS.md`](RUN_EXPERIMENTS.md) gives every step, how to resume, run
+some stages or flowsets, or share the run between machines, and how to compare
+the outputs with the paper's.
+
+## The paper's results
+
+[`results/`](results/README.md) holds the results of the paper's run: the 8
+CSVs, Table IV, the figures, the macros that hold every number of the
+Performance Evaluation section, and the inputs of the RQ4 models. Its README
+says what each file holds, where each kind of number comes from, and how to
+regenerate the macros and the table from the CSVs, without Gurobi.
+
+A new run writes into `output/` and `analysis/`, which git ignores, and leaves
+`results/` as it is; step 6 of [`RUN_EXPERIMENTS.md`](RUN_EXPERIMENTS.md#6-the-outputs)
+says how to compare the two.
 
 ## Contributors
 
