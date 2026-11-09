@@ -10,10 +10,14 @@
 #             objective, bounded search, 60 s per tuple, no flowset budget)
 #             and the baselines, at B^max = 51, 79, 107 and 135 RBs, M = 3
 #   rq4       solving time against the hyperperiod (analysis/rq4_hyperperiod.py):
-#             100 flowsets schedulable at 135 RBs, their minimum-peak tuple,
+#             every flowset schedulable at 135 RBs, its minimum-peak tuple,
 #             periods stretched to H* in {0.42, 0.84, 2.52, 8.4, 25.2} s, 1 h
 #             per model
-#   analysis  the CSVs (analysis/csv/), then table_rq2.tex, the figures and
+#   search    every baseline on every tuple of SIREN's at every budget
+#             (analysis/sweep_configurations.py, FLOW_CONFIG): what a baseline
+#             reaches with a search over prod_i P_i (the paper's RQ2 and RQ3)
+#   analysis  the CSVs (analysis/csv/, baseline_search.csv included), then
+#             table_rq2.tex, table_rq4.tex, the figures and
 #             numbers_results.tex (analysis/figures/paper/)
 #
 # Usage (from anywhere; needs GUROBI_HOME and a Gurobi license, see
@@ -23,7 +27,7 @@
 #   ./run_paper_experiment.sh -j 50 --shard 1/2   # machine 1 of 2 sharing this tree (a shared disk)
 #   ./run_paper_experiment.sh -j 50 --shard 2/2   # machine 2
 #   ./run_paper_experiment.sh --flowsets FILE     # only the flowsets FILE lists (one name per line)
-#   ./run_paper_experiment.sh --stages "sweep"    # some stages only (build sweep rq4 analysis)
+#   ./run_paper_experiment.sh --stages "sweep"    # some stages only (build sweep rq4 search analysis)
 # A long run is best detached: nohup ./run_paper_experiment.sh ... >run.log 2>&1 &
 #
 # Workers. Each worker is pinned to its own physical core (the first hardware
@@ -41,7 +45,8 @@
 # Shards. With --shard K/N, the K-th machine takes the flowsets whose position
 # in the list is K modulo N. Shard 1 builds (the others wait for it), runs RQ4's
 # `prepare` once every shard's sweep is done, and, once every shard's RQ4
-# share is done, the analysis; every shard solves its share of RQ4's models.
+# share is done, the analysis; every shard solves its share of RQ4's models,
+# and runs the search on the budgets whose position in RBS is K modulo N.
 # Every machine must see the same tree (a shared disk).
 #
 # Resume. A pair is done when output/sweep/rb<B>/.parallel/status/<flowset>
@@ -51,7 +56,8 @@
 # is retried at the next launch.
 #
 # Output (OUTPUT_DIR, default output/): sweep/rb<B>/{reports,logs}/<method>/,
-# rq4_siren/ (RQ4's models and results), and paper_run/ (per machine: the settings, the host's CPU, the commit,
+# rq4_siren/ (RQ4's models and results), per_config/rb<B>.csv (the search, one
+# row per tuple and method, about 9 million rows and 700 MB per budget), and paper_run/ (per machine: the settings, the host's CPU, the commit,
 # and pairs_<host>.tsv, one line per pair: budget, flowset, start, end, status).
 # Every stage refuses a tree whose ILP reports or RQ4 results were not written
 # by siren: use another OUTPUT_DIR for those of another solver.
@@ -59,8 +65,10 @@
 # Settings (the paper's Table III; override in the environment for tests only):
 #   RBS="51 79 107 135"  HARQs=3  ILP_CANDIDATE_TIMEOUT=60
 #   METHODS="ilp must qospf rr pf" (ilp: the ILP of SIREN, solved by siren)
-#   RQ4_SAMPLE=100  RQ4_CAP=3600  RQ4_SPLIT_H=8400  RQ4_JOBS_LARGE=12
-#   (models above RQ4_SPLIT_H ms need several GB each: RQ4_JOBS_LARGE at a time)
+#   RQ4_SAMPLE=1000  RQ4_CAP=3600  RQ4_JOBS=12
+#   (RQ4_SAMPLE caps the flowsets: 1000 takes all that are schedulable. RQ4_JOBS
+#   models at a time at every H*: the largest need several GB each, and every
+#   target runs at the same concurrency, so that their times compare)
 
 set -uo pipefail
 
@@ -75,7 +83,7 @@ usage() {
 JOBS=""
 SHARD="1/1"
 FLOWSET_LIST=""
-STAGES="build sweep rq4 analysis"
+STAGES="build sweep rq4 search analysis"
 while [ $# -gt 0 ]; do
     case "$1" in
         -j) JOBS="${2:?-j needs a number}"; shift 2 ;;
@@ -92,7 +100,7 @@ done
 SHARD_K=${BASH_REMATCH[1]}
 SHARD_N=${BASH_REMATCH[2]}
 for s in $STAGES; do
-    case " build sweep rq4 analysis " in *" $s "*) ;; *) echo "Unknown stage: $s" >&2; exit 2 ;; esac
+    case " build sweep rq4 search analysis " in *" $s "*) ;; *) echo "Unknown stage: $s" >&2; exit 2 ;; esac
 done
 has_stage() { case " $STAGES " in *" $1 "*) return 0 ;; esac; return 1; }
 if [ -n "$FLOWSET_LIST" ]; then
@@ -106,11 +114,10 @@ export HARQs="${HARQs:-3}"
 export METHODS="${METHODS:-ilp must qospf rr pf}"
 export ILP_OBJECTIVE=rb_peak ILP_RB_PEAK_SEARCH=bounded ILP_TIMEOUT=0
 export ILP_CANDIDATE_TIMEOUT="${ILP_CANDIDATE_TIMEOUT:-60}"
-RQ4_SAMPLE="${RQ4_SAMPLE:-100}"
+RQ4_SAMPLE="${RQ4_SAMPLE:-1000}"
 RQ4_CAP="${RQ4_CAP:-3600}"
-RQ4_SPLIT_H="${RQ4_SPLIT_H:-8400}"
-RQ4_JOBS_LARGE="${RQ4_JOBS_LARGE:-12}"
-RQ4_RB=135                                   # the budget whose tables RQ4 times
+RQ4_JOBS="${RQ4_JOBS:-12}"
+RQ4_RB=135                                  # the budget whose tables RQ4 times
 POLL="${POLL:-60}"                           # seconds between checks while waiting
 
 source ./parameters.sh                       # paths, TTI, t_up, A^max, ... (unchanged)
@@ -118,6 +125,7 @@ SIREN_DIR="$DIR/offline_phase/siren"
 SWEEP="$OUTPUT_DIR/sweep"
 # A folder of its own, which the rq4 stage prepares from this sweep.
 RQ4_DIR="$OUTPUT_DIR/rq4_siren"
+SEARCH_DIR="$OUTPUT_DIR/per_config"
 RUN_DIR="$OUTPUT_DIR/paper_run"
 HOST="$(hostname -s)"
 TTI_MS=$(echo "$TTI * 1000" | bc -l)
@@ -339,19 +347,60 @@ rq4() {
     else
         wait_for "shard 1's rq4 prepare" test -e "$RQ4_PREPARED"
     fi
-    say "rq4: this shard's models, $JOBS at a time up to H* = $RQ4_SPLIT_H ms, then $RQ4_JOBS_LARGE"
+    say "rq4: this shard's models, $RQ4_JOBS at a time"
     (cd "$DIR" &&
         taskset -c "$CPU_LIST" python3 analysis/rq4_hyperperiod.py --out "$RQ4_DIR" run \
-            --solver "$SIREN_DIR/siren" -j "$JOBS" --max-h "$RQ4_SPLIT_H" --cap "$RQ4_CAP" \
-            --harqs "$HARQs" --shard "$SHARD" &&
-        taskset -c "$CPU_LIST" python3 analysis/rq4_hyperperiod.py --out "$RQ4_DIR" run \
-            --solver "$SIREN_DIR/siren" -j "$RQ4_JOBS_LARGE" --cap "$RQ4_CAP" \
+            --solver "$SIREN_DIR/siren" -j "$RQ4_JOBS" --cap "$RQ4_CAP" \
             --harqs "$HARQs" --shard "$SHARD") >>"$RUN_DIR/rq4_run_${HOST}.log" 2>&1 || rc=1
     [ $rc -eq 0 ] || die "rq4 run failed ($RUN_DIR/rq4_run_${HOST}.log)"
     say "rq4: this shard's models are done"
 }
 
 has_stage rq4 && rq4
+
+# ------------------------------------------------------------------------
+# search
+# ------------------------------------------------------------------------
+# Each baseline on every tuple the ILP decided, at every budget, with that
+# tuple imposed (FLOW_CONFIG): analysis/sweep_configurations.py, one CSV per
+# budget. A budget is done when its .rb<B>.done marker exists; the CSV is
+# written under a temporary name and renamed, so that a stopped run leaves no
+# partial CSV behind.
+search_done() {  # search_done <rb>
+    [ -e "$SEARCH_DIR/.rb$1.done" ] && [ -s "$SEARCH_DIR/rb$1.csv" ]
+}
+all_search_done() {
+    local rb
+    for rb in $RBS; do search_done "$rb" || return 1; done
+}
+search() {
+    local rb i=0 baselines
+    check_tree
+    wait_for "every shard's sweep" all_pairs_ok
+    baselines=$(for m in $METHODS; do [ "$m" = ilp ] || echo "$m"; done | xargs)
+    mkdir -p "$SEARCH_DIR"
+    for rb in $RBS; do
+        i=$((i + 1))
+        [ $(((i - 1) % SHARD_N)) -eq $((SHARD_K - 1)) ] || continue
+        if search_done "$rb"; then
+            say "search: rb$rb already done"
+            continue
+        fi
+        say "search: rb$rb, $baselines on every tuple, $JOBS at a time"
+        rm -f "$SEARCH_DIR/.rb$rb.done" "$SEARCH_DIR/rb$rb.csv"
+        (cd "$DIR" &&
+            taskset -c "$CPU_LIST" python3 analysis/sweep_configurations.py \
+                --reports "$SWEEP/rb$rb/reports" --flowsets "$FLOWSETS_DIR" --mcs "$MCS_CONFIG" \
+                --methods $baselines --jobs "$JOBS" --out "$SEARCH_DIR/.rb$rb.csv.tmp" \
+                ${FLOWSET_LIST:+--flowset-list "$FLOWSET_LIST"}) \
+            >"$SEARCH_DIR/rb$rb.log" 2>&1 || die "search rb$rb failed ($SEARCH_DIR/rb$rb.log)"
+        mv "$SEARCH_DIR/.rb$rb.csv.tmp" "$SEARCH_DIR/rb$rb.csv" &&
+            date '+%F %T' >"$SEARCH_DIR/.rb$rb.done"
+    done
+    say "search: this shard's budgets are done"
+}
+
+has_stage search && search
 
 # ------------------------------------------------------------------------
 # analysis
@@ -363,12 +412,14 @@ analysis() {
         die "analysis: needs OUTPUT_DIR=$DIR/output (plot_paper.py reads output/sweep/), not $OUTPUT_DIR"
     wait_for "every shard's sweep" all_pairs_ok
     wait_for "every shard's RQ4 models" rq4_all_done
+    wait_for "every shard's search" all_search_done
     check_tree
     check_rq4_dir
     say "analysis: CSVs, table, figures and macros"
     # From empty: --derive keeps the rows of whatever its reports lack.
     for f in "$a"/csv/output_rb*.csv "$a/csv/output_sweep.csv" "$a/csv/derived_baseline_configs.csv" \
              "$a/csv/derived_ilp_timing_rb135.csv" "$a/csv/rq4_hyperperiod.csv" "$a/csv/rq4_control.csv" \
+             "$a/csv/baseline_search.csv" \
              "$a"/figures/paper/*; do
         rm -f "$f"
     done
@@ -377,7 +428,7 @@ analysis() {
             (cd "$DIR" && python3 analysis/rq4_hyperperiod.py --out "$RQ4_DIR" collect &&
                 python3 analysis/plot_paper.py --derive && python3 analysis/plot_paper.py)
     } >"$RUN_DIR/analysis.log" 2>&1 || die "analysis failed ($RUN_DIR/analysis.log)"
-    say "analysis: analysis/figures/paper/ (table_rq2.tex, fig_*.pdf, numbers_results.tex)"
+    say "analysis: analysis/figures/paper/ (table_rq2.tex, table_rq4.tex, fig_*.pdf, numbers_results.tex)"
 }
 
 if has_stage analysis; then

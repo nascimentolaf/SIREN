@@ -23,11 +23,11 @@ The code is organised as a pipeline:
  flowset + MCS table              ->  configurations per flow (offline_phase/planning, Section V)
  configurations                   ->  ILP schedule tables (offline_phase/siren)
  flowset + MCS table              ->  baseline schedule (baseline_algorithms/<method>)
- all reports                      ->  verdict tables, the paper's table, figures and macros (analysis/)
+ all reports                      ->  verdict tables, the paper's tables, figures and macros (analysis/)
 ```
 
 `scripts/run_paper_experiment.sh` runs the paper's experiments, from the
-committed flowsets to the table, figures and macros.
+committed flowsets to the tables, figures and macros.
 
 ## Where to start
 
@@ -42,7 +42,7 @@ committed flowsets to the table, figures and macros.
 | run the experiments: stages, workers, resume, shards | [Scripts](scripts.md) |
 | build and run `siren`, and its Gurobi license | [ILP evaluation](offline_phase/evaluation.md) |
 | know what a report file contains | [Output formats](output_formats.md) |
-| turn reports into the paper's table, figures and macros | [Analysis](analysis/index.md) |
+| turn reports into the paper's tables, figures and macros | [Analysis](analysis/index.md) |
 | regenerate the MCS table from link-level simulation | [BLER and MCS tables](bler.md) |
 | know what is broken or easy to trip over | [Known issues](known_issues.md) |
 | know who is behind the project and who funds it | [About us](about.md) |
@@ -55,7 +55,7 @@ committed flowsets to the table, figures and macros.
 | Configuration planner (Section V) | `offline_phase/planning/`, `common/` | [Configuration planning](offline_phase/planning.md) |
 | ILP scheduler, `siren` (Section VI) | `offline_phase/siren/` | [ILP evaluation](offline_phase/evaluation.md) |
 | Baseline schedulers | `baseline_algorithms/` | [Baselines](baselines/index.md) |
-| Verdicts, figures, RQ4 | `analysis/` | [Analysis](analysis/index.md) |
+| Verdicts, figures, RQ4, the search | `analysis/` | [Analysis](analysis/index.md) |
 | Link-level BLER simulation | `bler/` | [BLER and MCS tables](bler.md) |
 
 ## Conventions used in these pages

@@ -1,0 +1,108 @@
+{
+ "rq4": {
+  "flowset": "flowset_0423",
+  "target_h_ms": 840,
+  "h_ms": 840,
+  "periods_ms": [
+   168,
+   30,
+   42,
+   42
+  ],
+  "original_periods_ms": [
+   140,
+   30,
+   42,
+   42
+  ],
+  "deadlines_ms": [
+   60.0,
+   15.0,
+   20.0,
+   20.0
+  ],
+  "max_stretch": 1.2,
+  "n_rb": 135
+ },
+ "parameters": {
+  "t_up_ms": 4.0
+ },
+ "applications": [
+  {
+   "app": "DiscreteAutomation_T140",
+   "deadline": 60.0,
+   "period": 168.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "HighReliability_T30",
+   "deadline": 15.0,
+   "period": 30.0,
+   "segmentation_options": [
+    {
+     "num_segments": 1,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "HighReliability_T42",
+   "deadline": 20.0,
+   "period": 42.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "Monitoring_T42",
+   "deadline": 20.0,
+   "period": 42.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

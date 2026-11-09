@@ -1,0 +1,108 @@
+{
+ "rq4": {
+  "flowset": "flowset_0382",
+  "target_h_ms": 420,
+  "h_ms": 420,
+  "periods_ms": [
+   35,
+   70,
+   105,
+   60
+  ],
+  "original_periods_ms": [
+   35,
+   70,
+   105,
+   60
+  ],
+  "deadlines_ms": [
+   20.0,
+   30.0,
+   60.0,
+   30.0
+  ],
+  "max_stretch": 1.0,
+  "n_rb": 135
+ },
+ "parameters": {
+  "t_up_ms": 4.0
+ },
+ "applications": [
+  {
+   "app": "DiscreteAutomation_T35",
+   "deadline": 20.0,
+   "period": 35.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 3,
+       "b": 50,
+       "c": 3.0,
+       "a": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "PrecisionControl_T70",
+   "deadline": 30.0,
+   "period": 70.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 3,
+       "b": 50,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "ProcessControl_T105",
+   "deadline": 60.0,
+   "period": 105.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 3,
+       "b": 50,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "ProcessControl_T60",
+   "deadline": 30.0,
+   "period": 60.0,
+   "segmentation_options": [
+    {
+     "num_segments": 1,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 3,
+       "b": 50,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

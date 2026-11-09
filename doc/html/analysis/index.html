@@ -18,11 +18,12 @@
 <article>
 <h1 id="analysis">Analysis<a class="headerlink" href="#analysis" title="Link to this section">#</a></h1>
 <p><code>analysis/</code> turns the sweep's reports into verdict tables, and those into the
-paper's table, figures and LaTeX macros. Where <code>run_paper_experiment.sh</code>
+paper's tables, figures and LaTeX macros. Where <code>run_paper_experiment.sh</code>
 produces reports, these scripts reduce them to <strong>one row per (method,
 flowset)</strong>, so the methods can be compared. Nothing here runs a scheduler,
-except <code>rq4_hyperperiod.py run</code>, which solves the RQ4 models with <code>siren</code>. The
-CSVs, table, figures and macros of the paper's run are in <code>results/</code>, at the
+except <code>rq4_hyperperiod.py run</code>, which solves the RQ4 models with <code>siren</code>, and
+<code>sweep_configurations.py</code>, which runs the baselines on every tuple. The CSVs,
+tables, figures and macros of the paper's run are in <code>results/</code>, at the
 repository root (<code>results/README.md</code>).</p>
 <p>The distinction everything here is built on: <strong>how a method arrives at "this
 flowset is fine"</strong>.</p>
@@ -61,7 +62,7 @@ flowset is fine"</strong>.</p>
 </tr>
 <tr>
 <td align="left"><code>plot_paper.py</code></td>
-<td align="left">the paper's table, figures and macros, from the RB-budget sweep and RQ4</td>
+<td align="left">the paper's tables, figures and macros, from the RB-budget sweep, RQ4 and the search</td>
 </tr>
 <tr>
 <td align="left"><code>plot_evaluation.py</code></td>
@@ -71,27 +72,44 @@ flowset is fine"</strong>.</p>
 <td align="left"><code>rq4_hyperperiod.py</code></td>
 <td align="left">RQ4: prepare, solve and collect the ILP models of stretched hyperperiods</td>
 </tr>
+<tr>
+<td align="left"><code>rq4_statistics.py</code></td>
+<td align="left">RQ4's statistics, regressions and Table V; <code>plot_paper.py</code> calls it</td>
+</tr>
+<tr>
+<td align="left"><code>sweep_configurations.py</code></td>
+<td align="left">the search: every baseline on every tuple SIREN decided, one row per (tuple, method)</td>
+</tr>
+<tr>
+<td align="left"><code>baseline_search.py</code></td>
+<td align="left">reduces the search's per-tuple CSVs to <code>baseline_search.csv</code>, one row per (budget, baseline, flowset); <code>plot_paper.py</code> calls it</td>
+</tr>
 </tbody>
 </table>
-</div><p>The <code>analysis</code> stage of <code>scripts/run_paper_experiment.sh</code> runs them in this
-order, from empty CSVs:</p>
+</div><p>The <code>search</code> stage of <code>scripts/run_paper_experiment.sh</code> runs
+<code>sweep_configurations.py</code> once per budget, into <code>output/per_config/rb&lt;B&gt;.csv</code>
+(<a href="#baseline-search-sweep_configurationspy-and-baseline_searchpy">below</a>).
+The <code>analysis</code> stage then runs, in this order, from empty CSVs:</p>
 <pre><code class="language-bash">(cd scripts &amp;&amp; ./sweep_experiment.sh --collect)               # analysis/csv/output_rb&lt;B&gt;.csv, output_sweep.csv
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis/csv/rq4_hyperperiod.csv
-python3 analysis/plot_paper.py --derive                       # analysis/csv/derived_*.csv
-python3 analysis/plot_paper.py                                # analysis/figures/paper/
+python3 analysis/plot_paper.py --derive                       # analysis/csv/derived_*.csv, baseline_search.csv
+python3 analysis/plot_paper.py                                # analysis/figures/paper/, rq4_statistics.csv, rq4_regression.json
 </code></pre>
 <h2 id="data-flow">Data flow<a class="headerlink" href="#data-flow" title="Link to this section">#</a></h2>
 <pre><code class="language-text"> output/sweep/rb&lt;B&gt;/reports/&lt;method&gt;/...           output/rq4_siren/flowset_*/H*.result.json
-          |                                                 |
-          v  sweep_experiment.sh --collect                  v  rq4_hyperperiod.py collect
-          |  (collect_verdicts.py per budget)               |
-          v                                                 v
- analysis/csv/output_rb&lt;B&gt;.csv, output_sweep.csv    analysis/csv/rq4_hyperperiod.csv
+          |                    |                            |
+          |                    v  sweep_configurations.py   v  rq4_hyperperiod.py collect
+          |          output/per_config/rb&lt;B&gt;.csv            |
+          v  sweep_experiment.sh --collect                  v
+          |  (collect_verdicts.py per budget)    analysis/csv/rq4_hyperperiod.csv
+          v                                                 |
+ analysis/csv/output_rb&lt;B&gt;.csv, output_sweep.csv            |
           |                                                 |
           +-------------&gt; plot_paper.py &lt;-------------------+
-                             ^      |
- output/sweep/ (--derive) ---+      v
-                         analysis/figures/paper/
+                          ^    |   (rq4_statistics.py, baseline_search.py)
+ output/sweep/,           |    v
+ output/per_config/ ------+  analysis/figures/paper/,
+ (--derive)                  analysis/csv/rq4_statistics.csv, rq4_regression.json
 </code></pre>
 <hr>
 <h2 id="the-verdict-table">The verdict table<a class="headerlink" href="#the-verdict-table" title="Link to this section">#</a></h2>
@@ -284,9 +302,11 @@ how a crashed run becomes visible.</p>
 <h2 id="paper-results-plot_paperpy">Paper results (<code>plot_paper.py</code>)<a class="headerlink" href="#paper-results-plot_paperpy" title="Link to this section">#</a></h2>
 <p>The tables, figures and numbers of the paper's Performance Evaluation section,
 from the RB-budget sweep (<code>B^max</code> in {51, 79, 107, 135}, 1000 flowsets of 4
-applications, <code>M = 3</code>, 60 s per ILP candidate, no flowset budget) and from
-RQ4 (<a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">below</a>).</p>
-<pre><code class="language-bash">python3 analysis/plot_paper.py --derive   # the two derived CSVs, from output/sweep/
+applications, <code>M = 3</code>, 60 s per ILP candidate, no flowset budget), from
+RQ4 (<a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">below</a>)
+and from the search
+(<a href="#baseline-search-sweep_configurationspy-and-baseline_searchpy">below</a>).</p>
+<pre><code class="language-bash">python3 analysis/plot_paper.py --derive   # the derived CSVs, from output/sweep/ and output/per_config/
 python3 analysis/plot_paper.py            # analysis/figures/paper/
 </code></pre>
 <p>Its inputs are in <code>analysis/csv/</code>:</p>
@@ -312,12 +332,18 @@ python3 analysis/plot_paper.py            # analysis/figures/paper/
 </tr>
 <tr>
 <td align="left"><code>rq4_hyperperiod.csv</code></td>
-<td align="left">optional: one row per RQ4 model, from <code>rq4_hyperperiod.py collect</code>; without it the RQ4 figure and macros are not written</td>
+<td align="left">optional: one row per RQ4 model, from <code>rq4_hyperperiod.py collect</code>; without it the RQ4 figure, Table V and macros are not written</td>
+</tr>
+<tr>
+<td align="left"><code>baseline_search.csv</code></td>
+<td align="left">optional: the search, one row per (budget, baseline, flowset), written by <code>--derive</code> from <code>output/per_config/rb&lt;B&gt;.csv</code> (<code>baseline_search.py</code>); without it the <code>Search*</code> macros are not written</td>
 </tr>
 </tbody>
 </table>
 </div><p><code>--derive</code> prints <code>wrote derived_ilp_timing_rb135.csv: &lt;n&gt; rows</code>. If there are
-no ILP logs, it says the timing CSV was kept instead. It updates the derived
+no ILP logs, it says the timing CSV was kept instead. It then prints
+<code>wrote baseline_search.csv: &lt;n&gt; rows</code>, or, without per-tuple CSVs under
+<code>output/per_config/</code>, that <code>baseline_search.csv</code> was kept. It updates the derived
 CSVs from whatever <code>output/sweep/</code> holds: a (budget, method) whose reports are
 absent keeps its rows, which is why the analysis stage deletes the CSVs first.</p>
 <p><strong>Methods.</strong> The figures draw the methods of <code>PLOTTED</code> in <code>plot_paper.py</code>:
@@ -334,7 +360,11 @@ QoS-PF, RR, PF).</p>
 <tbody>
 <tr>
 <td align="left"><code>table_rq2.tex</code></td>
-<td align="left">RQ2: the tabular of the verdict shares (%) per budget and method (sched., undec., unsch., missed), in bold each budget's highest schedulable share and SIREN's missed share</td>
+<td align="left">RQ2 and RQ3, the paper's Table IV, one column wide: per budget, the share of the flowsets each method schedules (in bold, each budget's highest), then the median peak RB usage as a share of <code>B^max</code> on the flowsets all five methods schedule (in bold, each budget's lowest; <code>--</code> if there is no such flowset), and the number of those flowsets. Baselines whose medians coincide at every budget share one row, "All baselines". The caption, in the paper, says what the other flowsets are: proved unschedulable for SIREN, a missed deadline for a baseline</td>
+</tr>
+<tr>
+<td align="left"><code>table_rq4.tex</code></td>
+<td align="left">RQ4, the paper's Table V: per target hyperperiod <code>H</code> (ms), the mean solving time, its 95 % interval, the standard deviation, the minimum, the quartiles, the median and the maximum, in milliseconds. The number of models per hyperperiod is kept in the file, commented out of the table. Written by <code>rq4_statistics.py</code> (<a href="#rq4s-statistics-rq4_statisticspy">below</a>)</td>
 </tr>
 <tr>
 <td align="left"><code>fig_rq2_verdicts</code></td>
@@ -342,11 +372,11 @@ QoS-PF, RR, PF).</p>
 </tr>
 <tr>
 <td align="left"><code>fig_rq2_scaling</code></td>
-<td align="left">RQ2: schedulable share against the RB budget</td>
+<td align="left">RQ2: schedulable share against the RB budget; the band of SIREN's undecided flowsets is drawn only if there are any</td>
 </tr>
 <tr>
 <td align="left"><code>fig_rq3_rb_usage</code></td>
-<td align="left">RQ3: each method's median peak RB usage as a share of <code>B^max</code>, on the flowsets all five plotted methods schedule at that budget, so that every method is measured on the same flowsets; the value is written at every point. The four baselines' peaks coincide on most flowsets (their configuration, the same for all, sets them), so their points are spread sideways and a value they share is written once, in black. A budget with no such flowset is left out</td>
+<td align="left">RQ3: each method's median peak RB usage as a share of <code>B^max</code>, on the flowsets all five plotted methods schedule at that budget, so that every method is measured on the same flowsets; the value is written at every point. If the four baselines' medians coincide at every budget, as in the paper's run, they are drawn as one line, "baselines". Otherwise their points are spread sideways and a value they share is written once, in black. A budget with no such flowset is left out</td>
 </tr>
 <tr>
 <td align="left"><code>fig_rq3_residual_gain</code></td>
@@ -358,16 +388,18 @@ QoS-PF, RR, PF).</p>
 </tr>
 <tr>
 <td align="left"><code>fig_rq4_hyperperiod</code></td>
-<td align="left">RQ4: time to decide one ILP model against its hyperperiod, log-log; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod and the time limit</td>
+<td align="left">RQ4: time to decide one ILP model against its hyperperiod, log-log, twice as wide as the other figures (<code>--width</code>), at their height; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod. The legend lists only the outcomes that occur, the time limit is drawn only if a model reaches it, and with a single outcome the points take SIREN's colour</td>
 </tr>
 <tr>
 <td align="left"><code>numbers_results.tex</code></td>
-<td align="left"><code>\newcommand</code> macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also <code>\RqFourModels</code>, <code>\RqFourFlowsets</code>, <code>\RqFourCapSec</code> and, per target hyperperiod spelled out digit by digit (<code>TwoFiveTwoZeroZero</code> for 25200), <code>\RqFourMedianSec…</code>, <code>\RqFourTimeoutShare…</code>, <code>\RqFourMedianJobs…</code> and <code>\RqFourMedianBinaries…</code></td>
+<td align="left"><code>\newcommand</code> macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also <code>\RqFourModels</code>, <code>\RqFourFlowsets</code>, <code>\RqFourCapSec</code> and, per target hyperperiod spelled out digit by digit (<code>TwoFiveTwoZeroZero</code> for 25200), <code>\RqFourMedianSec…</code>, <code>\RqFourTimeoutShare…</code>, <code>\RqFourMedianJobs…</code> and <code>\RqFourMedianBinaries…</code>, then the statistics and regression macros of <code>rq4_statistics.py</code>. With <code>baseline_search.csv</code>, also the <code>Search*</code> macros (<a href="#baseline-search-sweep_configurationspy-and-baseline_searchpy">below</a>)</td>
 </tr>
 </tbody>
 </table>
-</div><p>The paper prints <code>table_rq2.tex</code> (its Table IV), <code>fig_rq3_rb_usage</code> and
-<code>fig_rq4_hyperperiod</code>, and quotes the macros. Each figure is written as <code>.pdf</code>
+</div><p>With RQ4 results, <code>plot_paper.py</code> also writes <code>analysis/csv/rq4_statistics.csv</code>
+and <code>analysis/csv/rq4_regression.json</code> (<code>rq4_statistics.py</code>).</p>
+<p>The paper prints <code>table_rq2.tex</code> (its Table IV) and <code>table_rq4.tex</code> (its
+Table V), and quotes the macros; it prints none of the figures. Each figure is written as <code>.pdf</code>
 and <code>.png</code>. Options: <code>--outdir</code> (default
 <code>analysis/figures/paper</code>), <code>--width</code>/<code>--height</code> (inches, 1.7 × 1.45),
 <code>--fontsize</code> (7), <code>--formats</code> (<code>pdf png</code>).</p>
@@ -405,9 +437,11 @@ every budget (the <code>Amax*</code> macros).</p>
 <h2 id="rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">RQ4: solving time against the hyperperiod (<code>rq4_hyperperiod.py</code>)<a class="headerlink" href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy" title="Link to this section">#</a></h2>
 <p>Each model is one flowset with one configuration per flow, solved for a table
 under the feasibility objective, on one thread, with a time limit (<code>--cap</code>,
-1 h in the paper's runs). The flowsets are a sample (<code>--sample</code>, 100) of those
-the sweep proved schedulable at the budget <code>--reports</code> names (135 RBs in
-<code>run_paper_experiment.sh</code>; the default is <code>rb51</code>), and the configuration is
+1 h in the paper's run). The flowsets are drawn (<code>--sample N</code>, default 100,
+with <code>--seed</code>) from those the sweep proved schedulable at the budget
+<code>--reports</code> names (135 RBs in <code>run_paper_experiment.sh</code>; the default is
+<code>rb51</code>). <code>run_paper_experiment.sh</code> passes <code>--sample 1000</code>, which takes all of
+them: 966 flowsets in the paper's run. The configuration is
 the sweep's minimum-peak tuple, read from
 <code>output/sweep/rb&lt;B&gt;/reports/ilp/&lt;flowset&gt;/offline_phase_report.json</code>. Each model
 records that budget (<code>n_rb</code>) and is solved at it, so the RB limit is as tight
@@ -422,17 +456,21 @@ alignments can still make a model infeasible: the figure tells the outcomes
 apart.</p>
 <p>The <code>rq4</code> stage of <code>run_paper_experiment.sh</code> runs, in <code>output/rq4_siren/</code>:</p>
 <pre><code class="language-bash">python3 analysis/rq4_hyperperiod.py --out output/rq4_siren prepare \
-    --reports output/sweep/rb135/reports/ilp --sample 100
-python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
-    --solver offline_phase/siren/siren -j &lt;workers&gt; --max-h 8400 --cap 3600 --harqs 3
+    --reports output/sweep/rb135/reports/ilp --sample 1000
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
     --solver offline_phase/siren/siren -j 12 --cap 3600 --harqs 3
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis stage
 </code></pre>
-<p>The first <code>run</code> solves the models up to 8400 ms, the second the larger ones
-(the models already solved are skipped), fewer at a time since each needs
-several GB. The paper's run used <code>-j 50</code> per server. Always pass <code>--solver</code>: its default names a binary this repository
+<p><code>run</code> solves 12 models at a time (<code>RQ4_JOBS</code>) at every target hyperperiod: the
+largest models need several GB each, and every target runs at the same
+concurrency, so that their times compare. The paper's run did the same on
+each of two servers (<code>--shard 1/2</code> and <code>--shard 2/2</code>), 12 models at a time per
+server. Always pass <code>--solver</code>: its default names a binary this repository
 does not ship.</p>
+<p><code>prepare</code> breaks ties between equally good periods with a floating-point sum,
+which Python 3.12 computes differently: run it with Python 3.10 or 3.11 to
+reproduce <code>results/rq4_models/</code> byte for byte (see
+<a href="../known_issues.html#limitations">Known issues</a>).</p>
 <p><code>run</code> solves the largest models first and records, per model, the outcome,
 the solving time (the time limit for a timeout), the wall time, the peak memory
 (only where <code>/usr/bin/time</code> exists), the machine (<code>host</code>) and the solver
@@ -454,7 +492,7 @@ depend on how many run at once.</p>
 <tbody>
 <tr>
 <td align="left"><code>prepare</code></td>
-<td align="left"><code>--sample N</code> (100), <code>--seed S</code>, <code>--targets ...</code>, <code>--stretch 1.5</code>, <code>--tuple {sweep,lowest-mean}</code>, <code>--reports DIR</code>, <code>--flowsets DIR</code>; it adds to what <code>--out</code> holds</td>
+<td align="left"><code>--sample N</code> (100; <code>run_paper_experiment.sh</code> passes 1000), <code>--seed S</code>, <code>--targets ...</code>, <code>--stretch 1.5</code>, <code>--tuple {sweep,lowest-mean}</code>, <code>--reports DIR</code>, <code>--flowsets DIR</code>; it adds to what <code>--out</code> holds</td>
 </tr>
 <tr>
 <td align="left"><code>run</code></td>
@@ -475,7 +513,173 @@ depend on how many run at once.</p>
 </tbody>
 </table>
 </div><p><code>--out DIR</code>, before the subcommand, is the model directory (<code>output/rq4_siren</code>
-in the paper's runs).</p>
+in <code>run_paper_experiment.sh</code>).</p>
+<h3 id="rq4s-statistics-rq4_statisticspy">RQ4's statistics (<code>rq4_statistics.py</code>)<a class="headerlink" href="#rq4s-statistics-rq4_statisticspy" title="Link to this section">#</a></h3>
+<p><code>plot_paper.py</code> calls it on <code>analysis/csv/rq4_hyperperiod.csv</code>; it also runs
+alone, without the macros, and prints a summary:</p>
+<pre><code class="language-bash">python3 analysis/rq4_statistics.py [--csv FILE] [--csv-dir DIR] [--table-dir DIR]
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Output</th>
+<th align="left">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>analysis/csv/rq4_statistics.csv</code> (<code>--csv-dir</code>)</td>
+<td align="left">one row per target hyperperiod: number of models and flowsets, undecided and infeasible models, mean, median, standard deviation, variance, extremes, quartiles and interquartile range, the Student t 95 % interval of the mean and a BCa bootstrap interval beside it, the interval's half-width as a share of the mean, coefficient of variation, skewness, Tukey outliers, the number of distinct times (the mode is not meaningful on continuous times), mean time per second of <code>H</code>, median time per job, median jobs and binaries</td>
+</tr>
+<tr>
+<td align="left"><code>analysis/csv/rq4_regression.json</code> (<code>--csv-dir</code>)</td>
+<td align="left">the regressions and their checks, below</td>
+</tr>
+<tr>
+<td align="left"><code>analysis/figures/paper/table_rq4.tex</code> (<code>--table-dir</code>)</td>
+<td align="left">the paper's Table V</td>
+</tr>
+</tbody>
+</table>
+</div><p>The method follows the design. Within a target the models are distinct
+flowsets, so a mean's interval is Student's t on them. Across targets the
+models of one flowset are not independent (a flowset slow at one hyperperiod
+is slow at all of them), so every regression's standard errors are clustered
+by flowset (CR1, t with G - 1 degrees of freedom). <code>rq4_regression.json</code>
+holds, among others:</p>
+<ul>
+<li>the least-squares line of the solving time on <code>H</code>, both in seconds, with
+  clustered standard errors (<code>line</code>), and the naive ones for comparison;</li>
+<li>two checks on its slope: the t interval of the per-flowset slopes, and a
+  bootstrap over flowsets; the line without the largest hyperperiod; the line
+  on the five means;</li>
+<li>a test of exact linearity against one mean per target (clustered Wald F,
+  <code>lack_of_fit</code>), and Breusch-Pagan tests of the residuals' variance;</li>
+<li>power laws on logarithmic axes, against <code>H</code>, the number of jobs and the
+  number of binaries;</li>
+<li><code>servers</code>: the same fits on each server alone, named <code>slower</code> and <code>faster</code>
+  (no host name is written), and their time ratio per target for a given
+  flowset.</li>
+</ul>
+<p>A model whose status is not a decision (a timeout) has only a lower bound for
+its time: the script then writes no table and no regression. A proof of
+infeasibility is a decision, and its time counts.</p>
+<hr>
+<h2 id="baseline-search-sweep_configurationspy-and-baseline_searchpy">Baseline search (<code>sweep_configurations.py</code> and <code>baseline_search.py</code>)<a class="headerlink" href="#baseline-search-sweep_configurationspy-and-baseline_searchpy" title="Link to this section">#</a></h2>
+<p>A baseline is given one configuration per flow by the shared selection rule
+(<a href="../baselines/index.html#configuration-selection">Baselines</a>). The search asks
+what it would reach if it could search over the tuples of <code>prod_i P_i</code>
+instead, as SIREN does: it runs the baseline once on every tuple the ILP
+decided, with that tuple imposed (<code>FLOW_CONFIG</code>). A flowset is schedulable for
+"baseline + search" if one tuple meets every deadline, and its residual
+capacity is that of its lowest-peak such tuple. Such a search needs SIREN's
+configuration analysis (Section V) and an offline simulation of every tuple,
+so the paper treats "baseline + search" as an ablation of SIREN, not as a
+scheduler a gNB runs.</p>
+<p>The <code>search</code> stage of <code>run_paper_experiment.sh</code> runs, for each budget <code>B</code>:</p>
+<pre><code class="language-bash">python3 analysis/sweep_configurations.py --reports output/sweep/rb&lt;B&gt;/reports \
+    --flowsets output/flowsets --mcs input/mcs_configurations.json \
+    --methods must qospf rr pf --jobs &lt;workers&gt; --out output/per_config/rb&lt;B&gt;.csv
+</code></pre>
+<p><code>sweep_configurations.py</code> reconstructs the tuples the ILP decided from its
+report (the first <code>num_combinations_tested</code> of the planner's candidates, in
+the ILP's order), and writes one row per (tuple, method): the <code>ilp</code> row
+repeats SIREN's verdict for the tuple, and each baseline's row has its
+verdict, deadline misses, <code>rb_peak</code> and the other checks of the verdict table.
+In the paper's run, every tuple of every flowset is decided, since SIREN has
+no budget per flowset: 9 107 705 rows per budget, about 700 MB.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Option</th>
+<th align="left">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>--reports DIR</code></td>
+<td align="left">a <code>reports/&lt;method&gt;/&lt;flowset&gt;/</code> tree; the ILP's reports give the tuples, and the radio (RBs, HARQs, TTI) is taken from them</td>
+</tr>
+<tr>
+<td align="left"><code>--flowsets DIR</code>, <code>--mcs FILE</code></td>
+<td align="left">the flowsets and the MCS table</td>
+</tr>
+<tr>
+<td align="left"><code>--methods ...</code></td>
+<td align="left">the baselines to run (default: every method under <code>--reports</code> but <code>ilp</code>); <code>--exclude</code> drops some</td>
+</tr>
+<tr>
+<td align="left"><code>--jobs N</code></td>
+<td align="left">processes at a time (default: the CPU count)</td>
+</tr>
+<tr>
+<td align="left"><code>--chunk N</code></td>
+<td align="left">tuples per task (100)</td>
+</tr>
+<tr>
+<td align="left"><code>--out FILE</code></td>
+<td align="left">the CSV to write</td>
+</tr>
+<tr>
+<td align="left"><code>--limit N</code>, <code>--flowset-list FILE</code></td>
+<td align="left">only the first N flowsets, or those FILE names</td>
+</tr>
+<tr>
+<td align="left"><code>--self-check</code></td>
+<td align="left">assert that every decoded tuple matches the one the ILP recorded for its index</td>
+</tr>
+<tr>
+<td align="left"><code>--run-timeout S</code></td>
+<td align="left">a wall-clock limit per baseline run (0, the default, is none); a run killed there is recorded as <code>timeout</code></td>
+</tr>
+</tbody>
+</table>
+</div><p><code>baseline_search.py derive</code> reduces those CSVs to
+<code>analysis/csv/baseline_search.csv</code>, one row per (budget, baseline, flowset):
+<code>n_tuples</code> (tuples run), <code>n_ok</code> (tuples on which every deadline is met) and
+<code>best_peak</code> (the lowest <code>rb_peak</code> among those). <code>plot_paper.py --derive</code> does
+the same. <code>baseline_search.py summary</code> prints, per budget and baseline, what
+<code>plot_paper.py</code> turns into macros:</p>
+<pre><code class="language-bash">python3 analysis/baseline_search.py derive [--per-config output/per_config] [--out FILE]
+python3 analysis/baseline_search.py summary
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th align="left">Macro</th>
+<th align="left">Per budget and baseline</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td align="left"><code>NSearchRuns</code></td>
+<td align="left">all budgets: the baseline runs of the search, the sum of <code>n_tuples</code></td>
+</tr>
+<tr>
+<td align="left"><code>SearchOk*</code>, <code>SearchN*</code></td>
+<td align="left">share and number of the flowsets with <code>n_ok &gt; 0</code></td>
+</tr>
+<tr>
+<td align="left"><code>SearchOnly*</code></td>
+<td align="left">how many of those SIREN does not schedule</td>
+</tr>
+<tr>
+<td align="left"><code>SearchGain*</code>, <code>SearchGain*Qone</code>, <code>SearchGain*Qthree</code></td>
+<td align="left">on the flowsets both schedule, the median and quartiles of SIREN's gain in guaranteed residual over the baseline's lowest-peak tuple, <code>best_peak</code> minus SIREN's <code>rb_peak</code> (<code>--</code> under 10 flowsets)</td>
+</tr>
+<tr>
+<td align="left"><code>SearchPaired*</code>, <code>SearchWorse*</code></td>
+<td align="left">the number of those flowsets, and how many have a negative gain</td>
+</tr>
+<tr>
+<td align="left"><code>SearchOkPfFamilyMin*</code>, <code>SearchOkPfFamilyMax*</code>, <code>SearchGainPfFamilyMin*</code>, <code>SearchGainPfFamilyMax*</code></td>
+<td align="left">the lowest and highest of QoS-PF, RR and PF</td>
+</tr>
+</tbody>
+</table>
+</div><p><code>collect_verdicts.py --per-config FILE</code> prints a per-tuple summary of one of
+these CSVs, and <code>plot_evaluation.py --per-config FILE</code> draws its coverage
+figure (<a href="figures.html">Figures</a>).</p>
 <hr>
 <h2 id="things-to-know-before-trusting-a-number">Things to know before trusting a number<a class="headerlink" href="#things-to-know-before-trusting-a-number" title="Link to this section">#</a></h2>
 <ul>
@@ -504,7 +708,7 @@ in the paper's runs).</p>
 <p class="source">Generated from <code>doc/analysis/index.md</code>. Edit the Markdown, then run <code>python3 doc/build_docs.py</code>.</p>
 </footer>
 </main>
-<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#data-flow">Data flow</a></li><li class="l2"><a href="#the-verdict-table">The verdict table</a></li><li class="l2"><a href="#collect_verdictspy">collect_verdicts.py</a></li><li class="l2"><a href="#paper-results-plot_paperpy">Paper results (plot_paper.py)</a></li><li class="l3"><a href="#ko_amax">ko_amax</a></li><li class="l2"><a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">RQ4: solving time against the hyperperiod (rq4_hyperperiod.py)</a></li><li class="l2"><a href="#things-to-know-before-trusting-a-number">Things to know before trusting a number</a></li></ul></nav>
+<nav class="toc"><p>On this page</p><ul><li class="l2"><a href="#data-flow">Data flow</a></li><li class="l2"><a href="#the-verdict-table">The verdict table</a></li><li class="l2"><a href="#collect_verdictspy">collect_verdicts.py</a></li><li class="l2"><a href="#paper-results-plot_paperpy">Paper results (plot_paper.py)</a></li><li class="l3"><a href="#ko_amax">ko_amax</a></li><li class="l2"><a href="#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy">RQ4: solving time against the hyperperiod (rq4_hyperperiod.py)</a></li><li class="l3"><a href="#rq4s-statistics-rq4_statisticspy">RQ4&#x27;s statistics (rq4_statistics.py)</a></li><li class="l2"><a href="#baseline-search-sweep_configurationspy-and-baseline_searchpy">Baseline search (sweep_configurations.py and baseline_search.py)</a></li><li class="l2"><a href="#things-to-know-before-trusting-a-number">Things to know before trusting a number</a></li></ul></nav>
 </div>
 <script src="../search_index.js"></script>
 <script src="../search.js"></script>

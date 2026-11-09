@@ -145,6 +145,13 @@ decides many. To compare on the same denominator, the environment variable
 (one `urllc::Candidate` per application, as JSON). See
 [Baselines](baselines/index.md#configuration-selection).
 
+The paper's search uses it: `analysis/sweep_configurations.py` runs every
+baseline on every tuple SIREN decided, and a flowset is schedulable for
+"baseline + search" if one tuple meets every deadline. Such a search needs
+SIREN's configuration analysis (Section V) and an offline simulation of every
+tuple, so it is an ablation of SIREN, not a scheduler a gNB runs. See
+[Analysis](analysis/index.md#baseline-search-sweep_configurationspy-and-baseline_searchpy).
+
 ## Directory map
 
 ```text
@@ -156,8 +163,8 @@ decides many. To compare on the same denominator, the environment variable
 │   ├── planning/           flowset -> planner_report.json (Section V)
 │   └── siren/   planner_report.json -> schedule tables (Section VI), Gurobi
 ├── baseline_algorithms/    rr, pf, qospf, must + common/
-├── analysis/               verdict reduction, paper table, figures and macros, RQ4
-├── results/                the paper's results: CSVs, table, figures, macros, RQ4 models
+├── analysis/               verdict reduction, paper tables, figures and macros, RQ4, search
+├── results/                the paper's results: CSVs, tables, figures, macros, RQ4 models
 ├── bler/                   link-level BLER simulation -> MCS table
 ├── scripts/                build, the paper's experiments, catalogue check
 ├── output/                 flowsets (tracked) and run outputs (ignored by git)

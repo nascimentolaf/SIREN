@@ -1,0 +1,108 @@
+{
+ "rq4": {
+  "flowset": "flowset_0323",
+  "target_h_ms": 420,
+  "h_ms": 420,
+  "periods_ms": [
+   105,
+   70,
+   60,
+   70
+  ],
+  "original_periods_ms": [
+   105,
+   70,
+   60,
+   70
+  ],
+  "deadlines_ms": [
+   60.0,
+   30.0,
+   30.0,
+   40.0
+  ],
+  "max_stretch": 1.0,
+  "n_rb": 135
+ },
+ "parameters": {
+  "t_up_ms": 4.0
+ },
+ "applications": [
+  {
+   "app": "Monitoring_T105",
+   "deadline": 60.0,
+   "period": 105.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 261,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 36,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "PrecisionControl_T70",
+   "deadline": 30.0,
+   "period": 70.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 261,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 36,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "ProcessControl_T60",
+   "deadline": 30.0,
+   "period": 60.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 261,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 36,
+       "c": 3.0,
+       "a": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "ProcessControl_T70",
+   "deadline": 40.0,
+   "period": 70.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 261,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 36,
+       "c": 3.0,
+       "a": 3
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

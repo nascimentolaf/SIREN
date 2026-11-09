@@ -1,0 +1,108 @@
+{
+ "rq4": {
+  "flowset": "flowset_0720",
+  "target_h_ms": 25200,
+  "h_ms": 25200,
+  "periods_ms": [
+   35,
+   75,
+   90,
+   48
+  ],
+  "original_periods_ms": [
+   30,
+   70,
+   84,
+   42
+  ],
+  "deadlines_ms": [
+   15.0,
+   30.0,
+   40.0,
+   20.0
+  ],
+  "max_stretch": 1.1666666666666667,
+  "n_rb": 135
+ },
+ "parameters": {
+  "t_up_ms": 4.0
+ },
+ "applications": [
+  {
+   "app": "DiscreteAutomation_T30",
+   "deadline": 15.0,
+   "period": 35.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "DiscreteAutomation_T70",
+   "deadline": 30.0,
+   "period": 75.0,
+   "segmentation_options": [
+    {
+     "num_segments": 1,
+     "tbs": 261,
+     "mbc_combinations": [
+      {
+       "m": 1,
+       "b": 44,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "DiscreteAutomation_T84",
+   "deadline": 40.0,
+   "period": 90.0,
+   "segmentation_options": [
+    {
+     "num_segments": 1,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "HighReliability_T42",
+   "deadline": 20.0,
+   "period": 48.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 469,
+     "mbc_combinations": [
+      {
+       "m": 2,
+       "b": 64,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

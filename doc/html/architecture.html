@@ -203,6 +203,12 @@ decides many. To compare on the same denominator, the environment variable
 <code>FLOW_CONFIG</code> makes any baseline schedule a configuration imposed from outside
 (one <code>urllc::Candidate</code> per application, as JSON). See
 <a href="baselines/index.html#configuration-selection">Baselines</a>.</p>
+<p>The paper's search uses it: <code>analysis/sweep_configurations.py</code> runs every
+baseline on every tuple SIREN decided, and a flowset is schedulable for
+"baseline + search" if one tuple meets every deadline. Such a search needs
+SIREN's configuration analysis (Section V) and an offline simulation of every
+tuple, so it is an ablation of SIREN, not a scheduler a gNB runs. See
+<a href="analysis/index.html#baseline-search-sweep_configurationspy-and-baseline_searchpy">Analysis</a>.</p>
 <h2 id="directory-map">Directory map<a class="headerlink" href="#directory-map" title="Link to this section">#</a></h2>
 <pre><code class="language-text">./
 ├── common/                 urllc_config.hpp (Section V) and its unit test
@@ -212,8 +218,8 @@ decides many. To compare on the same denominator, the environment variable
 │   ├── planning/           flowset -&gt; planner_report.json (Section V)
 │   └── siren/   planner_report.json -&gt; schedule tables (Section VI), Gurobi
 ├── baseline_algorithms/    rr, pf, qospf, must + common/
-├── analysis/               verdict reduction, paper table, figures and macros, RQ4
-├── results/                the paper's results: CSVs, table, figures, macros, RQ4 models
+├── analysis/               verdict reduction, paper tables, figures and macros, RQ4, search
+├── results/                the paper's results: CSVs, tables, figures, macros, RQ4 models
 ├── bler/                   link-level BLER simulation -&gt; MCS table
 ├── scripts/                build, the paper's experiments, catalogue check
 ├── output/                 flowsets (tracked) and run outputs (ignored by git)

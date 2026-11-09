@@ -51,12 +51,12 @@ continue with the run guide, <code>RUN_EXPERIMENTS.md</code> at the repository r
 <td align="left"><code>scripts/run_paper_experiment.sh</code> and <code>scripts/parameters.sh</code></td>
 </tr>
 <tr>
-<td align="left">Python 3 with <code>numpy</code>, <code>pandas</code> and <code>matplotlib</code></td>
-<td align="left"><code>analysis/plot_paper.py</code>, <code>analysis/plot_evaluation.py</code></td>
+<td align="left">Python 3 with <code>numpy</code>, <code>pandas</code>, <code>matplotlib</code> and <code>scipy</code></td>
+<td align="left"><code>analysis/plot_paper.py</code> (which imports <code>rq4_statistics.py</code> and <code>baseline_search.py</code>), <code>analysis/plot_evaluation.py</code>, <code>analysis/rq4_statistics.py</code> (<code>numpy</code>, <code>pandas</code>, <code>scipy</code>), <code>analysis/baseline_search.py</code> (<code>pandas</code>)</td>
 </tr>
 <tr>
 <td align="left">Python 3 (standard library only)</td>
-<td align="left"><code>scripts/check_catalogue.py</code>, <code>analysis/collect_verdicts.py</code>, <code>analysis/rq4_hyperperiod.py</code>, <code>offline_phase/siren/validate_schedule.py</code></td>
+<td align="left"><code>scripts/check_catalogue.py</code>, <code>analysis/collect_verdicts.py</code>, <code>analysis/rq4_hyperperiod.py</code>, <code>analysis/sweep_configurations.py</code>, <code>offline_phase/siren/validate_schedule.py</code></td>
 </tr>
 </tbody>
 </table>
@@ -106,7 +106,7 @@ OUTPUT_DIR=/tmp/first RBS=135 ./scripts/run_paper_experiment.sh \
 </code></pre>
 <ul>
 <li><code>--flowsets first.txt</code> runs flowsets <code>0001</code> and <code>0002</code> only; <code>--stages
-  sweep</code> runs only the sweep (no build, RQ4 or analysis).</li>
+  sweep</code> runs only the sweep (no build, RQ4, search or analysis).</li>
 <li><code>RBS=135</code> runs only the 135 RB budget (an override meant for tests).</li>
 <li><code>OUTPUT_DIR=/tmp/first</code> keeps the run out of the repository's <code>output/</code>; it
   needs a <code>flowsets/</code> folder, here a link to the committed flowsets.</li>
@@ -137,7 +137,7 @@ vocabulary is defined in <a href="analysis/index.html#the-verdict-table">Analysi
 <li><a href="architecture.html">Architecture</a>: what the ILP proves, what a baseline
   simulates, and why the two are compared the way they are.</li>
 <li><a href="scripts.html">Scripts</a>: <code>run_paper_experiment.sh</code> in full.</li>
-<li><a href="analysis/index.html">Analysis</a>: from reports to the paper's table, figures
+<li><a href="analysis/index.html">Analysis</a>: from reports to the paper's tables, figures
   and macros.</li>
 <li><code>RUN_EXPERIMENTS.md</code>: the paper's runs, step by step.</li>
 <li><code>results/README.md</code>: the paper's results, and where each of its numbers comes

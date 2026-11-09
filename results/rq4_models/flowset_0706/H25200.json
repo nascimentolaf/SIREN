@@ -1,0 +1,108 @@
+{
+ "rq4": {
+  "flowset": "flowset_0706",
+  "target_h_ms": 25200,
+  "h_ms": 25200,
+  "periods_ms": [
+   105,
+   25,
+   28,
+   144
+  ],
+  "original_periods_ms": [
+   105,
+   20,
+   28,
+   140
+  ],
+  "deadlines_ms": [
+   60.0,
+   10.0,
+   15.0,
+   60.0
+  ],
+  "max_stretch": 1.25,
+  "n_rb": 135
+ },
+ "parameters": {
+  "t_up_ms": 4.0
+ },
+ "applications": [
+  {
+   "app": "Monitoring_T105",
+   "deadline": 60.0,
+   "period": 105.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 129,
+     "mbc_combinations": [
+      {
+       "m": 1,
+       "b": 22,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "Monitoring_T20",
+   "deadline": 10.0,
+   "period": 25.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 129,
+     "mbc_combinations": [
+      {
+       "m": 1,
+       "b": 22,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "Monitoring_T28",
+   "deadline": 15.0,
+   "period": 28.0,
+   "segmentation_options": [
+    {
+     "num_segments": 3,
+     "tbs": 129,
+     "mbc_combinations": [
+      {
+       "m": 1,
+       "b": 22,
+       "c": 2.0,
+       "a": 2
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "app": "PrecisionControl_T140",
+   "deadline": 60.0,
+   "period": 144.0,
+   "segmentation_options": [
+    {
+     "num_segments": 2,
+     "tbs": 129,
+     "mbc_combinations": [
+      {
+       "m": 1,
+       "b": 22,
+       "c": 4.0,
+       "a": 4
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

@@ -7,6 +7,8 @@ nothing here runs a scheduler or changes a result.
     analysis/csv/output_sweep.csv          verdicts, all budgets (sweep --collect)
     analysis/csv/derived_baseline_configs.csv   attempts each baseline committed to
     analysis/csv/derived_ilp_timing_rb135.csv   ILP per-flowset solving time
+    analysis/csv/baseline_search.csv       each baseline with a search over SIREN's
+                                           tuples (baseline_search.py), if present
 
 The two derived tables are extracted once from output/sweep/ (`--derive`), so
 the figures regenerate without the ~8 GB report tree (results/csv/ holds the
@@ -29,6 +31,10 @@ paper's):
     Both are the solver's solve times: building each model is not included.
     `host` is the machine that ran the flowset (the log's "Host:" line), so
     times measured on different hardware can be told apart.
+
+`--derive` also writes baseline_search.csv when output/per_config/ holds
+sweep_configurations.py's per-tuple CSVs (scripts/run_paper_experiment.sh,
+stage search); without them, the committed one is kept.
 
 `--derive` reads whatever output/sweep/ holds and updates the derived CSVs
 for that alone: a method or budget whose reports are absent keeps its rows,
@@ -245,6 +251,8 @@ import matplotlib as mpl  # noqa: E402
 mpl.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import plot_evaluation as pe  # noqa: E402
+import rq4_statistics  # noqa: E402
+import baseline_search  # noqa: E402
 
 # The paper's name for the proposed method, which the framework calls `ilp`;
 # only the paper's figures use it (plot_evaluation.py keeps "ILP").
@@ -306,7 +314,7 @@ def fig_verdicts(d: pd.DataFrame, a) -> None:
     for yi, m in zip(y, methods):
         ax.text(1.015, yi, f"{100 * tab.loc[m, 'ok']:.1f}%", va="center", ha="left",
                 color=pe.INK, fontsize=a.fontsize - 0.5)
-    ax.set_yticks(y, [LABEL[m] for m in methods])
+    ax.set_yticks(y, [NAME if m == "ilp" else LABEL[m] for m in methods])
     ax.get_yticklabels()[0].set_fontweight("bold")
     ax.set_xlim(0, 1)
     ax.set_ylim(-0.6, len(methods) - 0.4)
@@ -324,8 +332,11 @@ def fig_scaling(d: pd.DataFrame, a, budgets: list | None = None) -> None:
     share = (d.assign(ok=d.verdict_model == "ok", nu=d.verdict_model != "ko_unschedulable")
              .groupby(["method", "rb"])[["ok", "nu"]].mean() * 100)
     il = share.loc["ilp"]
-    ax.fill_between(budgets, il.ok, il.nu, color=pe.COLOR["ilp"], alpha=0.14, lw=0,
-                    zorder=1, label=f"{NAME} undecided")
+    # The band is the undecided flowsets: none, no band and no label for it.
+    undecided = (il.nu > il.ok).any()
+    if undecided:
+        ax.fill_between(budgets, il.ok, il.nu, color=pe.COLOR["ilp"], alpha=0.14, lw=0,
+                        zorder=1, label=f"{NAME} undecided")
     methods = PLOTTED
     for m in methods:
         s = share.loc[m]
@@ -341,23 +352,24 @@ def fig_scaling(d: pd.DataFrame, a, budgets: list | None = None) -> None:
     # The band's label stays above the band, inside the plotted range.
     last = budgets[-1]
     # (text, x, y of the anchor, offset in points, alignment, colour)
-    labels = [
-            (f"{NAME}: not proved\nunschedulable", last, share.loc["ilp"].nu.iloc[-1], 0, 3, "right",
-             "bottom", pe.COLOR["ilp"]),
-            (NAME, last, end["ilp"], 3, 0, "left", "center", pe.COLOR["ilp"])]
-    for group in (["must", "edf"], ["qospf", "rr", "pf"]):
+    labels = []
+    if undecided:
+        labels.append((f"{NAME}: not proved\nunschedulable", last, share.loc["ilp"].nu.iloc[-1], 0, 3,
+                       "right", "bottom", pe.COLOR["ilp"]))
+    for group in (["ilp", "must", "edf"], ["qospf", "rr", "pf"]):
         g = sorted((m for m in group if m in methods), key=lambda m: -end[m])
         for k, m in enumerate(g):
-            labels.append((pe.LABEL[m], last, end[g].mean(), 3, ((len(g) - 1) / 2 - k) * step,
-                           "left", "center", pe.COLOR[m]))
+            labels.append((NAME if m == "ilp" else pe.LABEL[m], last, end[g].mean(), 3,
+                           ((len(g) - 1) / 2 - k) * step, "left", "center", pe.COLOR[m]))
     if TPS in methods:
         # 5G-TPS climbs through the band label's spot above the band, so that
         # label moves inside the band, midway between the second and third
         # budgets, where no line runs; the 5G-TPS label hangs from its end.
         mid = (budgets[1] + budgets[2]) / 2
         band_mid = (il.ok.loc[budgets[1]:budgets[2]].mean() + il.nu.loc[budgets[1]:budgets[2]].mean()) / 2
-        labels[0] = (f"{NAME}: not proved\nunschedulable", mid, band_mid, 0, 0, "center", "center",
-                     pe.COLOR["ilp"])
+        if undecided:
+            labels[0] = (f"{NAME}: not proved\nunschedulable", mid, band_mid, 0, 0, "center", "center",
+                         pe.COLOR["ilp"])
         labels.append((TPS_DIRECT_LABEL, last, end[TPS], 3, 3, "left", "top", pe.COLOR[TPS]))
     for text, x, y, dx, dy, ha, va, col in labels:
         ax.annotate(text, (x, y), xytext=(dx, dy), textcoords="offset points",
@@ -389,58 +401,71 @@ def paired_gain(d: pd.DataFrame, col: str, budgets: list | None = None) -> pd.Da
     return pd.DataFrame(rows)
 
 
-# RQ2's table (the paper's Table of verdict shares, which replaced Fig. 2):
-# per budget, the share of the flowsets each method schedules, leaves
-# undecided, proves unschedulable, or misses a deadline on. Only the tabular
-# is written; its caption and label are the paper's (results.tex).
-TABLE_COLS = [("ok", "sched."), ("timeout", "undec."), ("ko_unschedulable", "unsch."),
-              ("ko_deadline_miss", "missed")]
+# The paper's table for RQ2 and RQ3: per budget, the share of the flowsets each
+# method schedules, and the median peak RB usage on the flowsets all of them
+# schedule. Only the tabular is written; its caption and label are the paper's
+# (results.tex), and the caption says what the rest of the flowsets are: proved
+# unschedulable for SIREN, a missed deadline for a baseline.
+TABLE_REST = {"ilp": "ko_unschedulable"}
 
 
 def table_rq2(d: pd.DataFrame, out: Path, budgets: list | None = None, note: str = "") -> None:
-    """table_rq2.tex: the verdict shares (%) per budget and method. In bold:
-    each budget's highest schedulable share, and SIREN's missed share (none:
-    its tables are proved). Undecided and proved unschedulable apply to SIREN
-    only; a baseline's are '--'. note, if any, closes the table."""
+    """table_rq2.tex, one column wide. In bold: each budget's highest schedulable
+    share and lowest peak usage. Baselines whose usage coincides at every budget
+    share a row. note, if any, closes the table."""
     budgets = budgets or BUDGETS
     shares = {(rb, m): d[(d.rb == rb) & (d.method == m)].verdict_model.value_counts(normalize=True) * 100
               for rb in budgets for m in PLOTTED}
     for (rb, m), s in shares.items():
-        other = s.drop([c for c, _ in TABLE_COLS], errors="ignore")
+        other = s.drop(["ok", TABLE_REST.get(m, "ko_deadline_miss")], errors="ignore")
         if other.sum() > 0:
-            print(f"warning: table_rq2: rb{rb} {m} has verdicts outside its columns: "
+            print(f"warning: table_rq2: rb{rb} {m} has verdicts the caption does not cover: "
                   f"{other.round(1).to_dict()}", file=sys.stderr)
     best = {rb: max(shares[(rb, m)].get("ok", 0.0) for m in PLOTTED) for rb in budgets}
+    u = usage(d, budgets).set_index(["rb", "method"])
+    low = {rb: min(u.med[rb, m] for m in PLOTTED) for rb in budgets}
+    same = all(u.med[rb, m] == u.med[rb, BASELINES[0]] for rb in budgets for m in BASELINES)
 
-    def cell(rb, m, c):
-        if m != "ilp" and c in ("timeout", "ko_unschedulable"):
+    def share(rb, m):
+        v = shares[(rb, m)].get("ok", 0.0)
+        return rf"\textbf{{{v:.1f}}}" if v == best[rb] else f"{v:.1f}"
+
+    def peak(rb, m):
+        if u.n[rb, m] < USAGE_MIN_N:
             return "--"
-        v = shares[(rb, m)].get(c, 0.0)
-        bold = (c == "ok" and v == best[rb]) or (m == "ilp" and c == "ko_deadline_miss")
-        return rf"\textbf{{{v:.1f}}}" if bold else f"{v:.1f}"
+        v = u.med[rb, m]
+        return rf"\textbf{{{v:.0f}}}" if v == low[rb] else f"{v:.0f}"
 
-    n = len(budgets) * len(TABLE_COLS)
+    def row(name_, f, m):
+        return name_ + " & " + " & ".join(f(rb, m) for rb in budgets) + r" \\"
+
+    def title(text):
+        return rf"\multicolumn{{{len(budgets) + 1}}}{{@{{}}l}}{{\emph{{{text}}}}} \\"
+
+    def method(m):
+        return r"\siren" if m == "ilp" else LABEL[m]
+
     lines = [
-        "% Generated by analysis/plot_paper.py (table_rq2): RQ2's verdict shares (%). Do not edit.",
+        "% Generated by analysis/plot_paper.py (table_rq2): RQ2's and RQ3's values. Do not edit.",
         r"\footnotesize",
-        r"\setlength{\tabcolsep}{3pt}",
-        r"\begin{tabular}{@{}l" + "r" * n + r"@{}}",
+        r"\begin{tabular}{@{}l" + "r" * len(budgets) + r"@{}}",
         r"\toprule",
-        " & " + " & ".join(rf"\multicolumn{{{len(TABLE_COLS)}}}{{c}}{{$B^{{\max}}={rb}$ RBs}}"
-                           for rb in budgets) + r" \\",
-        "".join(rf"\cmidrule(lr){{{2 + len(TABLE_COLS) * i}-{1 + len(TABLE_COLS) * (i + 1)}}}"
-                for i in range(len(budgets))),
-        "Flowsets (\\%) & " + " & ".join(h for _ in budgets for _, h in TABLE_COLS) + r" \\",
+        r"$B^{\max}$ (RBs) & " + " & ".join(str(rb) for rb in budgets) + r" \\",
         r"\midrule",
+        title(r"Schedulable flow sets (\%)"),
+        *(row(method(m), share, m) for m in PLOTTED),
+        r"\midrule",
+        title(r"Median peak RB usage (\% of $B^{\max}$)"),
+        row(method("ilp"), peak, "ilp"),
+        *([row("All baselines", peak, BASELINES[0])] if same
+          else [row(method(m), peak, m) for m in BASELINES]),
+        "Flow sets all five schedule & " + " & ".join(str(u.n[rb, "ilp"]) for rb in budgets) + r" \\",
+        r"\bottomrule",
     ]
-    for m in PLOTTED:
-        name_ = r"\siren" if m == "ilp" else LABEL[m]
-        lines.append(name_ + " & " + " & ".join(cell(rb, m, c) for rb in budgets for c, _ in TABLE_COLS)
-                     + r" \\")
-    lines.append(r"\bottomrule")
     if note:
-        lines.append(rf"\multicolumn{{{n + 1}}}{{@{{}}l}}{{\scriptsize {note}}} \\")
-    lines.append(r"\end{tabular}")
+        lines.append(rf"\multicolumn{{{len(budgets) + 1}}}{{@{{}}l}}{{\scriptsize {note}}} \\")
+    # The paper keeps the spacing under the table commented out (the author's layout).
+    lines += [r"\end{tabular}", r"% \vspace{-0.1cm}", ""]
     out.mkdir(parents=True, exist_ok=True)
     (out / "table_rq2.tex").write_text("\n".join(lines) + "\n")
     print(f"  wrote {out / 'table_rq2.tex'}")
@@ -487,9 +512,19 @@ def usage(d: pd.DataFrame, budgets: list | None = None) -> pd.DataFrame:
 
 def fig_usage(d: pd.DataFrame, a, budgets: list | None = None) -> pd.DataFrame:
     """RQ3, as a share of the cell: each method's median peak RB usage, on the
-    flowsets all of them schedule, with the value at every point."""
+    flowsets all of them schedule, with the value at every point. Baselines
+    whose medians coincide at every budget are drawn as one line."""
     u = usage(d, budgets)
     u = u[u.n >= USAGE_MIN_N]
+    full = u
+    color, label = dict(pe.COLOR), dict(pe.LABEL)
+    label["ilp"] = NAME
+    shown, base_shown = PLOTTED, BASELINES
+    if not u.empty and u[u.method != "ilp"].groupby("rb").med.nunique().eq(1).all():
+        base_shown = BASELINES[:1]
+        shown = ["ilp"] + base_shown
+        u = u[u.method.isin(shown)]
+        color[base_shown[0]], label[base_shown[0]] = pe.INK_SOFT, "baselines"
     fig, ax = plt.subplots(figsize=(a.width, a.height))
     ax.set_ylim(0, 112)
     ax.set_yticks([0, 25, 50, 75, 100])
@@ -497,7 +532,7 @@ def fig_usage(d: pd.DataFrame, a, budgets: list | None = None) -> pd.DataFrame:
     ax.set_ylabel("peak RB usage (% of $B^{\\max}$)")
     if u.empty:
         save(fig, a.outdir, "fig_rq3_rb_usage", a.formats)
-        return u
+        return full
     drawn = sorted(u.rb.unique())
     ax.set_xticks(drawn)
     ax.set_xlim(drawn[0] - 8, drawn[-1] + 8)
@@ -532,9 +567,9 @@ def fig_usage(d: pd.DataFrame, a, budgets: list | None = None) -> pd.DataFrame:
             ms = sorted((r.method for r in g), key=PLOTTED.index)
             for k, m in enumerate(ms):
                 xs[(m, rb)] = rb + (k - (len(ms) - 1) / 2) * 3.2 * px
-    for m in PLOTTED:
+    for m in shown:
         s = u[u.method == m]
-        ax.plot([xs[(m, rb)] for rb in s.rb], s.med, color=pe.COLOR[m], ls=pe.DASH[m],
+        ax.plot([xs[(m, rb)] for rb in s.rb], s.med, color=color[m], ls=pe.DASH[m],
                 marker=pe.MARKER[m], ms=2.4, zorder=3)
     num = dict(textcoords="offset points", ha="center", fontsize=a.fontsize - 1.8,
                annotation_clip=False)
@@ -556,7 +591,7 @@ def fig_usage(d: pd.DataFrame, a, budgets: list | None = None) -> pd.DataFrame:
         dip = bool(nb) and all(b > btop[rb] for b in nb)
         for v, grp in base.groupby("v"):
             x = np.mean([xs[(m, rb)] for m in grp.method])
-            col = pe.COLOR[grp.method.iloc[0]] if len(grp) == 1 else pe.INK
+            col = color[grp.method.iloc[0]] if len(grp) == 1 else pe.INK
             above = v == top and not dip
             ax.annotate(f"{v:.0f}", (x, v), xytext=(0, 3.5) if above else (0, -4),
                         va="bottom" if above else "top", color=col, **num)
@@ -566,21 +601,21 @@ def fig_usage(d: pd.DataFrame, a, budgets: list | None = None) -> pd.DataFrame:
     last = drawn[-1]
     end = u[u.rb == last].set_index("method").med
     step = (a.fontsize - 1.3) * 1.15 * py          # one label's height, data units
-    order = sorted(BASELINES, key=lambda m: -end[m])
-    mid = end[BASELINES].mean()
+    order = sorted(base_shown, key=lambda m: -end[m])
+    mid = end[base_shown].mean()
     ys = {m: mid + ((len(order) - 1) / 2 - k) * step for k, m in enumerate(order)}
     il = end["ilp"]
     if il <= mid:
         ys["ilp"] = min(il, min(ys[m] for m in order) - step)
     else:
         ys["ilp"] = max(il, max(ys[m] for m in order) + step)
-    x = max(xs[(m, last)] for m in PLOTTED)
+    x = max(xs[(m, last)] for m in shown)
     for m in ["ilp"] + order:
-        ax.annotate(NAME if m == "ilp" else pe.LABEL[m], (x, ys[m]), xytext=(5, 0),
+        ax.annotate(label[m], (x, ys[m]), xytext=(5, 0),
                     textcoords="offset points", ha="left", va="center",
-                    fontsize=a.fontsize - 1.3, color=pe.COLOR[m], annotation_clip=False)
+                    fontsize=a.fontsize - 1.3, color=color[m], annotation_clip=False)
     save(fig, a.outdir, "fig_rq3_rb_usage", a.formats)
-    return u
+    return full
 
 
 def fig_time(t: pd.DataFrame, v: pd.DataFrame, a) -> None:
@@ -623,22 +658,28 @@ RQ4_STATUS = [("schedulable", "table found", pe.VERDICT_COLOR["ok"], "o"),
 
 
 def fig_rq4_hyperperiod(r: pd.DataFrame, a) -> None:
-    """RQ4: time to decide one ILP model against its hyperperiod (log-log)."""
-    fig, ax = plt.subplots(figsize=(a.width, a.height))
+    """RQ4: time to decide one ILP model against its hyperperiod (log-log). The
+    legend has only the statuses that occur, and the time limit is drawn only
+    if a model reaches it; with a single status, the points are SIREN's color."""
+    # A whole column wide, at the panels' height and font size.
+    fig, ax = plt.subplots(figsize=(2 * a.width, a.height))
     rng = np.random.default_rng(0)
-    for status, label, col, mk in RQ4_STATUS:
+    present = [st for st in RQ4_STATUS if (r.status == st[0]).any()]
+    single = len(present) == 1
+    for status, label, col, mk in present:
         s = r[r.status == status]
         # Multiplicative jitter, so the points of one hyperperiod stay apart
         # on the log axis without leaving their column.
         x = s.h_ms / 1000 * np.exp(rng.uniform(-0.12, 0.12, len(s)))
-        ax.scatter(x, s.solve_s, s=4, marker=mk, color=col, alpha=0.55, lw=0, zorder=3,
-                   label=label)
+        ax.scatter(x, s.solve_s, s=4, marker=mk, color=pe.COLOR["ilp"] if single else col,
+                   alpha=0.55, lw=0, zorder=3, label="one model" if single else label)
     med = r.groupby("target_h_ms").solve_s.median()
     ax.plot(med.index / 1000, med.values, color=pe.INK, lw=1.0, zorder=4, label="median")
-    cap = r.cap_s.max()
-    ax.axhline(cap, color=pe.INK_MUTED, lw=0.5, ls=(0, (3, 2)), zorder=1)
-    ax.text(r.h_ms.min() / 1000, cap * 0.75, "time limit", color=pe.INK_SOFT,
-            fontsize=a.fontsize - 1.5, va="top")
+    if (r.status == "timeout").any():
+        cap = r.cap_s.max()
+        ax.axhline(cap, color=pe.INK_MUTED, lw=0.5, ls=(0, (3, 2)), zorder=1)
+        ax.text(r.h_ms.min() / 1000, cap * 0.75, "time limit", color=pe.INK_SOFT,
+                fontsize=a.fontsize - 1.5, va="top")
     ax.set_xscale("log")
     ax.set_yscale("log")
     # Ticks at the target hyperperiods, plain numbers on both axes.
@@ -649,10 +690,11 @@ def fig_rq4_hyperperiod(r: pd.DataFrame, a) -> None:
     ax.yaxis.set_major_formatter(plain)
     ax.set_xlabel("hyperperiod $H$ (s)")
     ax.set_ylabel("solving time (s)")
-    # Above the axes: the points fill every corner inside.
-    ax.legend(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2, frameon=False,
-              columnspacing=0.8, fontsize=a.fontsize - 1.6, handletextpad=0.2,
-              borderaxespad=0.2, markerscale=1.6)
+    # Two entries fit the empty upper left; more go above the axes, where they
+    # cover no point.
+    place = dict(loc="upper left") if single else dict(loc="lower center", bbox_to_anchor=(0.5, 1.0), ncol=2)
+    ax.legend(frameon=False, columnspacing=0.8, fontsize=a.fontsize - 1.6, handletextpad=0.2,
+              borderaxespad=0.2, markerscale=1.6, **place)
     save(fig, a.outdir, "fig_rq4_hyperperiod", a.formats)
 
 
@@ -689,6 +731,7 @@ def rq4_numbers(r: pd.DataFrame, cmd, fmt) -> None:
         c = pd.read_csv(RQ4_CONTROL_CSV)
         cmd("RqFourControlModels", len(c))
         cmd("RqFourControlRatio", f"{c.ratio.median():.2f}")
+    rq4_statistics.macros(r, cmd)
 
 
 # ---------------------------------------------------------------- macros ----
@@ -726,12 +769,14 @@ def app_appearances(flowsets) -> pd.Series:
 def write_numbers(d: pd.DataFrame, g: pd.DataFrame, gw: pd.DataFrame,
                   t: pd.DataFrame, out: Path, rq4: pd.DataFrame | None = None,
                   first: pd.DataFrame | None = None, sources: str = "",
-                  tuples_all: pd.Series | None = None) -> None:
+                  tuples_all: pd.Series | None = None,
+                  search: pd.DataFrame | None = None) -> None:
     """numbers_results.tex. first: the ILP timing (derive_ilp_timing) with the
     ILP's verdict and n_candidates_total per flowset, that the first-table and
     tuple-count macros read instead of t and d (--partial: the verdict run's).
     tuples_all: n_candidates_total of every generated flowset, for
-    MedianTuplesAll (default: those of first, or of d)."""
+    MedianTuplesAll (default: those of first, or of d). search: baseline_search.csv,
+    for the macros of each baseline with a search over SIREN's tuples."""
     L = ["% Generated by analysis/plot_paper.py -- do not edit.",
          "% sources: " + (sources or "output_sweep.csv, derived_baseline_configs.csv, "
                           f"{TIMING_CSV.name}")]
@@ -840,6 +885,29 @@ def write_numbers(d: pd.DataFrame, g: pd.DataFrame, gw: pd.DataFrame,
         cmd(f"Max{k}", f"{s.max():,.0f}".replace(",", "\\,"))
     if rq4 is not None:
         rq4_numbers(rq4, cmd, fmt)
+    # RQ2 and RQ3: each baseline with a search over SIREN's tuples
+    # (baseline_search.py): the flowsets it schedules then, those of them SIREN
+    # does not, and SIREN's gain in guaranteed residual over the baseline's
+    # lowest-peak tuple, on the flowsets both schedule, as for Gain... above.
+    if search is not None:
+        c = baseline_search.compare(search, d)
+        cmd("NSearchRuns", f"{int(c.n_runs.sum()):,}".replace(",", "\\,"))
+        for _, r in c.iterrows():
+            k = f"{name(r.method)}{name(int(r.rb))}"
+            cmd(f"SearchOk{k}", f"{100 * r.n_ok / r.n_flowsets:.1f}\\%")
+            cmd(f"SearchN{k}", int(r.n_ok))
+            cmd(f"SearchOnly{k}", int(r.only_search))
+            cmd(f"SearchGain{k}", signed(r.med) if r.n >= MIN_N else "--")
+            cmd(f"SearchGain{k}Qone", signed(r.q1) if r.n >= MIN_N else "--")
+            cmd(f"SearchGain{k}Qthree", signed(r.q3) if r.n >= MIN_N else "--")
+            cmd(f"SearchPaired{k}", int(r.n))
+            cmd(f"SearchWorse{k}", int(r.worse))
+        for rb, s in c[c.method.isin(PF_FAMILY)].groupby("rb"):
+            ok = 100 * s.n_ok / s.n_flowsets
+            cmd(f"SearchOkPfFamilyMin{name(int(rb))}", f"{ok.min():.1f}\\%")
+            cmd(f"SearchOkPfFamilyMax{name(int(rb))}", f"{ok.max():.1f}\\%")
+            cmd(f"SearchGainPfFamilyMin{name(int(rb))}", signed(s.med.min()))
+            cmd(f"SearchGainPfFamilyMax{name(int(rb))}", signed(s.med.max()))
     out.mkdir(parents=True, exist_ok=True)
     (out / "numbers_results.tex").write_text("\n".join(L) + "\n")
     print(f"  wrote {out / 'numbers_results.tex'} ({len(L) - 2} macros)")
@@ -1151,6 +1219,13 @@ def main() -> int:
         else:
             t.to_csv(TIMING_CSV, index=False)
             print(f"wrote {TIMING_CSV.name}: {len(t)} rows")
+        s = baseline_search.derive()
+        if s.empty:
+            print(f"no per-tuple CSVs under {baseline_search.PER_CONFIG}: "
+                  f"{baseline_search.SEARCH_CSV.name} kept")
+        else:
+            s.to_csv(baseline_search.SEARCH_CSV, index=False)
+            print(f"wrote {baseline_search.SEARCH_CSV.name}: {len(s)} rows")
         return 0
 
     d = load()
@@ -1166,7 +1241,10 @@ def main() -> int:
     rq4 = pd.read_csv(RQ4_CSV) if RQ4_CSV.exists() else None
     if rq4 is not None:
         fig_rq4_hyperperiod(rq4, args)
-    write_numbers(d, g, gw, t, args.outdir, rq4)
+        rq4_statistics.write_results(rq4, args.outdir)
+    search = (pd.read_csv(baseline_search.SEARCH_CSV)
+              if baseline_search.SEARCH_CSV.exists() else None)
+    write_numbers(d, g, gw, t, args.outdir, rq4, search=search)
     return 0
 
 

@@ -44,7 +44,7 @@ two variables above in camelCase; no code in the repository reads them.
 | :--- | :--- | :--- | :--- |
 | `MCS_CONFIG` | `input/mcs_configurations.json` | planner, baselines, `check_catalogue.py` | link-layer table |
 | `APP_DATABASE` | `input/app_database.json` | `check_catalogue.py` | application catalogue |
-| `OUTPUT_DIR` | `output` | every script | root of `flowsets/` (the inputs), `sweep/`, `rq4_siren/` and `paper_run/`. The analysis stage needs the default |
+| `OUTPUT_DIR` | `output` | every script | root of `flowsets/` (the inputs), `sweep/`, `rq4_siren/`, `per_config/` and `paper_run/`. The analysis stage needs the default |
 | `NUMBER_OF_APPSETS`, `APP_PER_SET` | `1000`, `4` | `check_catalogue.py` | the flowsets the catalogue must allow (`C(30, 4)` combinations) |
 | `FLOWSET_SEED` | `20260922` | `generate_flowset` | shuffle seed; empty means a random seed (not reproducible). The committed flowsets were drawn with it |
 

@@ -2,7 +2,7 @@
 
 This guide reruns, on one machine, the experiments behind the Performance
 Evaluation section of *SIREN: Table-Driven Real-Time MAC Scheduler*, and
-regenerates its table, figures and macros. One script does it all,
+regenerates its tables, figures and macros. One script does it all,
 `scripts/run_paper_experiment.sh`. SIREN is the method `ilp` in every
 directory and CSV below, solved by the program `siren` with Gurobi.
 
@@ -49,7 +49,7 @@ solving anything, and its pair is marked `fail`.
 
 The other requirements: CMake ≥ 3.13, `make`, `g++` with C++20 support,
 `nlohmann/json`, `bc`, `lscpu`, `taskset` and `flock` (util-linux), and
-Python 3 with `numpy`, `pandas` and `matplotlib` (details:
+Python 3 with `numpy`, `pandas`, `matplotlib` and `scipy` (details:
 `doc/getting_started.md`).
 
 ```bash
@@ -93,14 +93,15 @@ your license. A long run is best detached:
 nohup ./scripts/run_paper_experiment.sh -j <workers> >run.log 2>&1 &
 ```
 
-Its four stages, in order:
+Its five stages, in order:
 
 | Stage | What it does | Writes |
 | :--- | :--- | :--- |
 | `build` | `make` of the planner, the baselines and `siren` (step 2) | the binaries |
 | `sweep` | every pair (`B^max`, flowset) of the 1000 flowsets of `output/flowsets/` at 51, 79, 107 and 135 RBs: the planner and `siren`, then MUST, QoS-PF, RR and PF | `output/sweep/rb<B>/` |
-| `rq4` | RQ4, once the sweep is complete: `analysis/rq4_hyperperiod.py prepare` draws 100 flowsets that SIREN schedules at 135 RBs, takes their minimum-peak tuple and stretches their periods to hyperperiods of 420, 840, 2520, 8400 and 25 200 ms; `run --solver offline_phase/siren/siren` solves each model at 135 RBs | `output/rq4_siren/` |
-| `analysis` | from empty CSVs: `scripts/sweep_experiment.sh --collect`, `rq4_hyperperiod.py collect`, `plot_paper.py --derive`, `plot_paper.py` | `analysis/csv/`, `analysis/figures/paper/` |
+| `rq4` | RQ4, once the sweep is complete: `analysis/rq4_hyperperiod.py prepare --sample 1000` takes every flowset SIREN schedules at 135 RBs, with its minimum-peak tuple, and stretches its periods to hyperperiods of 420, 840, 2520, 8400 and 25 200 ms; `run --solver offline_phase/siren/siren -j 12` solves each model at 135 RBs, 12 at a time | `output/rq4_siren/` |
+| `search` | once the sweep is complete: `analysis/sweep_configurations.py`, once per budget on that budget's reports, runs every baseline of `METHODS` on every tuple SIREN decided, with that tuple imposed (`FLOW_CONFIG`), `-j` processes at a time. This is the paper's "baseline + search", an ablation of SIREN: it needs SIREN's configuration analysis and an offline simulation of every tuple, so it is not a scheduler a gNB runs | `output/per_config/rb<B>.csv`, one row per tuple and method (about 9 million rows and 700 MB per budget), and `rb<B>.log` |
+| `analysis` | from empty CSVs: `scripts/sweep_experiment.sh --collect`, `rq4_hyperperiod.py collect`, `plot_paper.py --derive` (which also reduces `output/per_config/` to `baseline_search.csv`), `plot_paper.py` | `analysis/csv/`, `analysis/figures/paper/` |
 
 **Settings.** The script sets the paper's settings itself:
 
@@ -114,7 +115,8 @@ Its four stages, in order:
 | time per flowset | no limit |
 | Gurobi threads | 1 (set in `siren`) |
 | optimality gap | 0 (`MIPGap` and `MIPGapAbs`, set in `siren`) |
-| RQ4 | 100 flowsets, at 135 RBs, under the feasibility objective, 1 h (3600 s) per model; `-j` models at a time up to `H*` = 8400 ms, then 12 at a time (`RQ4_JOBS_LARGE`), since each of the larger models needs several GB |
+| RQ4 | `RQ4_SAMPLE` 1000, which takes every flowset SIREN schedules at 135 RBs; at 135 RBs, under the feasibility objective, 1 h (3600 s) per model (`RQ4_CAP`); `RQ4_JOBS` 12 models at a time at every `H*`, since the largest models need several GB each and every target runs at the same concurrency, so that their times compare |
+| search | every baseline of `METHODS` (`must`, `qospf`, `rr`, `pf`) on every tuple, at every budget, `-j` processes at a time |
 
 The rest comes from `scripts/parameters.sh` (TTI 0.25 ms, upper-layer delay
 4 ms, `A^max = 4`, the QoS-PF and PF parameters, …). The script's header lists
@@ -127,9 +129,11 @@ machine. What bounds it, per budget and per flowset, is the number of tuples
 SIREN decides, each within 60 s of wall-clock time, followed by the peak search
 over the schedulable tuples. The 1000 flowsets have a median of 1260 tuples and
 at most 11 000 (`MedianTuples` and `MaxTuples` in
-`results/figures/numbers_results.tex`). RQ4 adds at most 500 models (100
-flowsets, 5 hyperperiods), of at most 1 h each. The baselines take a negligible
-time next to the ILP.
+`results/figures/numbers_results.tex`). RQ4 adds one model per flowset SIREN
+schedules at 135 RBs and target hyperperiod (4816 in the paper's run), of at
+most 1 h each, 12 at a time. The search runs each of the four baselines once
+per tuple: 1 821 541 tuples per budget in the paper's run. The baselines take
+a negligible time next to the ILP.
 
 ## 5. Resume, stages, flowsets, shards
 
@@ -140,17 +144,20 @@ RQ4 skips the models that have a result. A pair that failed says
 `fail <methods>` and is run again at the next launch. The sweep stage stops
 with an error if some pair is not `ok` at its end.
 
-**Some stages only.** `--stages` takes a list of `build`, `sweep`, `rq4` and
-`analysis`:
+**Some stages only.** `--stages` takes a list of `build`, `sweep`, `rq4`,
+`search` and `analysis`:
 
 ```bash
 ./scripts/run_paper_experiment.sh --stages "build"
-./scripts/run_paper_experiment.sh -j <workers> --stages "sweep rq4"
+./scripts/run_paper_experiment.sh -j <workers> --stages "sweep rq4 search"
 ./scripts/run_paper_experiment.sh --stages "analysis"
 ```
 
-The `rq4` and `analysis` stages wait until every pair of the sweep is `ok`,
-and `analysis` until every RQ4 model has a result.
+The `rq4`, `search` and `analysis` stages wait until every pair of the sweep
+is `ok`, and `analysis` until every RQ4 model has a result and every budget's
+search is done. A budget's search is done when `output/per_config/.rb<B>.done`
+exists; its CSV is written under a temporary name and renamed at the end, so a
+stopped search leaves no partial CSV, and is run again at the next launch.
 
 **Some flowsets only.** `--flowsets FILE` runs only the flowsets FILE lists,
 one name (`flowset_NNNN`) per line:
@@ -178,9 +185,10 @@ in the list is K modulo N:
 ```
 
 Shard 1 builds (the others wait for it), runs RQ4's `prepare` once every
-shard's sweep is done, and runs the analysis once every shard's RQ4 models are
-done; every shard solves its share of the pairs and of the RQ4 models. The
-`-j` of all machines together must stay within the license.
+shard's sweep is done, and runs the analysis once every shard's RQ4 models and
+search are done; every shard solves its share of the pairs and of the RQ4
+models, and runs the search on the budgets whose position in `RBS` is K modulo
+N. The `-j` of all machines together must stay within the license.
 
 ## 6. The outputs
 
@@ -190,9 +198,10 @@ done; every shard solves its share of the pairs and of the RQ4 models. The
 | `output/sweep/rb<B>/logs/<method>/<flowset>.log` | what each method printed; the ILP's lists every tuple with its time |
 | `output/sweep/rb<B>/.parallel/status/<flowset>` | `ok`, or `fail <methods>` |
 | `output/rq4_siren/flowset_*/H*.json`, `*.result.json` | the RQ4 models and their results |
+| `output/per_config/rb<B>.csv`, `rb<B>.log` | the search: one row per tuple and method (the `ilp` row repeats SIREN's verdict for the tuple), about 9 million rows and 700 MB per budget; and what `sweep_configurations.py` printed |
 | `output/paper_run/` | per machine: `manifest_<host>.txt` (start time, CPU model and cores, shard and workers, stages, flowsets, settings, git commit) and `pairs_<host>.tsv` (one line per pair: budget, flowset, start and end as Unix times, status); the logs of the build, RQ4 and analysis stages |
-| `analysis/csv/` | `output_rb<B>.csv` (the verdict table of each budget), `output_sweep.csv` (all budgets), `derived_baseline_configs.csv`, `derived_ilp_timing_rb135.csv`, `rq4_hyperperiod.csv` |
-| `analysis/figures/paper/` | the paper's table (`table_rq2.tex`), figures (`fig_*.pdf` and `.png`) and macros (`numbers_results.tex`) |
+| `analysis/csv/` | `output_rb<B>.csv` (the verdict table of each budget), `output_sweep.csv` (all budgets), `derived_baseline_configs.csv`, `derived_ilp_timing_rb135.csv`, `rq4_hyperperiod.csv`, `rq4_statistics.csv`, `rq4_regression.json`, `baseline_search.csv` |
+| `analysis/figures/paper/` | the paper's tables (`table_rq2.tex`, Table IV, and `table_rq4.tex`, Table V), figures (`fig_*.pdf` and `.png`) and macros (`numbers_results.tex`) |
 
 `doc/analysis/index.md` describes each CSV, figure and macro.
 
@@ -202,9 +211,12 @@ holds. A new run writes into `output/` and `analysis/`, which git ignores, and
 leaves `results/` as it is. After a run of all the stages:
 
 ```bash
-# the macros and the table
+# the macros and the tables
 diff analysis/figures/paper/numbers_results.tex results/figures/numbers_results.tex
 diff analysis/figures/paper/table_rq2.tex results/figures/table_rq2.tex
+diff analysis/figures/paper/table_rq4.tex results/figures/table_rq4.tex
+# the search
+diff analysis/csv/baseline_search.csv results/csv/baseline_search.csv
 # the verdict tables, baselines only: every column of every row
 for b in 51 79 107 135; do
     diff <(grep -v ',ilp,' analysis/csv/output_rb$b.csv) <(grep -v ',ilp,' results/csv/output_rb$b.csv)
@@ -221,11 +233,18 @@ What to expect:
   (`solve_time_ms_median`, `solve_time_ms_max`), so compare their `verdict` and
   `rb_peak`, not the whole row;
 - every time (per tuple, first table, RQ4) is a measurement on your machine, so
-  the macros that hold times differ, and with them `numbers_results.tex`;
+  the macros that hold times differ, and with them `numbers_results.tex`,
+  `table_rq4.tex`, `rq4_statistics.csv` and `rq4_regression.json`;
+- the search runs the deterministic baselines on every tuple SIREN decided,
+  which is every tuple of every flowset since SIREN has no budget per flowset,
+  so `baseline_search.csv` must match the paper's; the `Search*` macros also
+  read SIREN's verdicts and peaks, so they follow the remark above;
 - `host` holds your machine's name, where `results/` has `server1` or `server2`;
-- RQ4's `prepare` draws from the flowsets SIREN schedules at 135 RBs and takes
-  their minimum-peak tuple, so the `H*.json` of `output/rq4_siren/` match
-  `results/rq4_models/` when the sweep's reports agree on these.
+- RQ4's `prepare` takes every flowset SIREN schedules at 135 RBs and its
+  minimum-peak tuple, so the `H*.json` of `output/rq4_siren/` match
+  `results/rq4_models/` when the sweep's reports agree on these, with Python
+  3.10 or 3.11; with Python 3.12 or later, 71 of them get other periods, equally
+  valid (see [Known issues](doc/known_issues.md#limitations)).
 
 To check the paper's numbers without running anything, regenerate them from
 `results/csv/` as `results/README.md` says.

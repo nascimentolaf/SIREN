@@ -15,8 +15,8 @@ Linux with Bash.
 | CMake ≥ 3.13, `make`, `g++` with C++20 support (`siren` and the baselines are built as C++17; the flowset generator and the planner ask CMake for C++20) | every C++ component |
 | `nlohmann/json` installed system-wide (`nlohmann-json3-dev` on Debian/Ubuntu); `scripts/install.sh` installs it with `sudo apt-get` if CMake cannot find it | `siren`'s CMake build (`find_package(nlohmann_json)`); every other component bundles its own `json.hpp` |
 | `bc`, `lscpu`, `taskset`, `flock`, `hostname`, `mktemp` (util-linux and coreutils) | `scripts/run_paper_experiment.sh` and `scripts/parameters.sh` |
-| Python 3 with `numpy`, `pandas` and `matplotlib` | `analysis/plot_paper.py`, `analysis/plot_evaluation.py` |
-| Python 3 (standard library only) | `scripts/check_catalogue.py`, `analysis/collect_verdicts.py`, `analysis/rq4_hyperperiod.py`, `offline_phase/siren/validate_schedule.py` |
+| Python 3 with `numpy`, `pandas`, `matplotlib` and `scipy` | `analysis/plot_paper.py` (which imports `rq4_statistics.py` and `baseline_search.py`), `analysis/plot_evaluation.py`, `analysis/rq4_statistics.py` (`numpy`, `pandas`, `scipy`), `analysis/baseline_search.py` (`pandas`) |
+| Python 3 (standard library only) | `scripts/check_catalogue.py`, `analysis/collect_verdicts.py`, `analysis/rq4_hyperperiod.py`, `analysis/sweep_configurations.py`, `offline_phase/siren/validate_schedule.py` |
 
 Neither the repository nor its scripts install Gurobi or a license. The
 `gurobipy` wheel from pip is not enough: `siren` needs the C headers and
@@ -81,7 +81,7 @@ OUTPUT_DIR=/tmp/first RBS=135 ./scripts/run_paper_experiment.sh \
 ```
 
 - `--flowsets first.txt` runs flowsets `0001` and `0002` only; `--stages
-  sweep` runs only the sweep (no build, RQ4 or analysis).
+  sweep` runs only the sweep (no build, RQ4, search or analysis).
 - `RBS=135` runs only the 135 RB budget (an override meant for tests).
 - `OUTPUT_DIR=/tmp/first` keeps the run out of the repository's `output/`; it
   needs a `flowsets/` folder, here a link to the committed flowsets.
@@ -120,7 +120,7 @@ vocabulary is defined in [Analysis](analysis/index.md#the-verdict-table).
 - [Architecture](architecture.md): what the ILP proves, what a baseline
   simulates, and why the two are compared the way they are.
 - [Scripts](scripts.md): `run_paper_experiment.sh` in full.
-- [Analysis](analysis/index.md): from reports to the paper's table, figures
+- [Analysis](analysis/index.md): from reports to the paper's tables, figures
   and macros.
 - `RUN_EXPERIMENTS.md`: the paper's runs, step by step.
 - `results/README.md`: the paper's results, and where each of its numbers comes

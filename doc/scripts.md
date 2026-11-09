@@ -9,7 +9,7 @@ resolves its paths from its own location, so it can be launched from anywhere.
 | `install.sh` | build every C++ component, `siren` included (installs nlohmann/json if missing) |
 | `install_conda.sh` | the same inside an activated conda environment |
 | `parameters.sh` | defaults for every setting; sourced by the others, never executed |
-| `run_paper_experiment.sh` | the paper's experiments: build, RB-budget sweep, RQ4, then the table, figures and macros |
+| `run_paper_experiment.sh` | the paper's experiments: build, RB-budget sweep, RQ4, the search, then the tables, figures and macros |
 | `sweep_experiment.sh` | its `--collect` mode reduces the sweep's reports to CSVs; `run_paper_experiment.sh` calls it |
 | `check_catalogue.py` | validate the application catalogue (see [Inputs](input.md#checking-the-catalogue)) |
 
@@ -62,7 +62,7 @@ ILP solved by `siren` and the four baselines MUST, QoS-PF, RR and PF, on the
 ```bash
 ./run_paper_experiment.sh                     # every stage, one worker per physical core
 ./run_paper_experiment.sh -j 8                # 8 workers
-./run_paper_experiment.sh --stages "sweep"    # some stages only (build sweep rq4 analysis)
+./run_paper_experiment.sh --stages "sweep"    # some stages only (build sweep rq4 search analysis)
 ./run_paper_experiment.sh --flowsets FILE     # only the flowsets FILE lists (one name per line)
 ./run_paper_experiment.sh -j 8 --shard 1/2    # machine 1 of 2 sharing this tree on one disk
 ./run_paper_experiment.sh -j 8 --shard 2/2    # machine 2
@@ -72,8 +72,9 @@ ILP solved by `siren` and the four baselines MUST, QoS-PF, RR and PF, on the
 | :--- | :--- | :--- |
 | `build` | `make` in `offline_phase/planning`, `baseline_algorithms` and `offline_phase/siren`; stops if `GUROBI_HOME` is not set | the binaries; `output/paper_run/build_*.log` |
 | `sweep` | every (`B^max`, flowset) pair at 51, 79, 107 and 135 RBs: the planner and `siren`, then each baseline | `output/sweep/rb<B>/reports/<method>/<flowset>/`, `logs/<method>/<flowset>.log`, `.parallel/status/<flowset>` |
-| `rq4` | `analysis/rq4_hyperperiod.py`: `prepare` (100 flowsets that `siren` schedules at 135 RBs, their minimum-peak tuple, periods stretched to the target hyperperiods), then `run --solver offline_phase/siren/siren`, 1 h per model | `output/rq4_siren/` |
-| `analysis` | from empty CSVs: `sweep_experiment.sh --collect`, `rq4_hyperperiod.py collect`, `plot_paper.py --derive`, `plot_paper.py` | `analysis/csv/`, `analysis/figures/paper/` |
+| `rq4` | `analysis/rq4_hyperperiod.py`: `prepare --sample 1000` (every flowset `siren` schedules at 135 RBs, its minimum-peak tuple, periods stretched to the target hyperperiods; shard 1 only, after deleting `output/rq4_siren/`), then `run --solver offline_phase/siren/siren -j 12`, 1 h per model | `output/rq4_siren/`; `output/paper_run/rq4_*.log` |
+| `search` | `analysis/sweep_configurations.py`, once per budget on `output/sweep/rb<B>/reports`: every baseline of `METHODS` on every tuple SIREN decided, with that tuple imposed (`FLOW_CONFIG`), `-j` processes at a time (see [Analysis](analysis/index.md#baseline-search-sweep_configurationspy-and-baseline_searchpy)) | `output/per_config/rb<B>.csv` (about 9 million rows and 700 MB per budget), `rb<B>.log`, `.rb<B>.done` |
+| `analysis` | from empty CSVs: `sweep_experiment.sh --collect`, `rq4_hyperperiod.py collect`, `plot_paper.py --derive` (which also writes `baseline_search.csv` from `output/per_config/`), `plot_paper.py` | `analysis/csv/`, `analysis/figures/paper/` |
 
 **Settings.** The script sets the paper's settings itself:
 
@@ -87,15 +88,16 @@ ILP solved by `siren` and the four baselines MUST, QoS-PF, RR and PF, on the
 | `ILP_CANDIDATE_TIMEOUT` | `60` s per ILP tuple (wall-clock) |
 | Gurobi threads | one, set in `siren` |
 | Optimality gap | zero (`MIPGap`, `MIPGapAbs`), set in `siren` |
-| `RQ4_SAMPLE`, `RQ4_CAP` | `100` flowsets, `3600` s per model, at 135 RBs (`RQ4_RB`) |
-| `RQ4_SPLIT_H`, `RQ4_JOBS_LARGE` | RQ4 solves the models up to 8400 ms with `-j` workers (`-j 50` per server in the paper's run), then the larger ones `12` at a time (they need several GB each) |
+| `RQ4_SAMPLE`, `RQ4_CAP` | `1000` flowsets at most, so every flowset `siren` schedules at 135 RBs (`RQ4_RB`); `3600` s per model |
+| `RQ4_JOBS` | `12` models at a time at every target hyperperiod: the largest need several GB each, and every target runs at the same concurrency, so that their times compare |
 
-`RBS`, `HARQs`, `METHODS`, `ILP_CANDIDATE_TIMEOUT` and the `RQ4_*` values can
+`RBS`, `HARQs`, `METHODS`, `ILP_CANDIDATE_TIMEOUT`, `RQ4_SAMPLE`, `RQ4_CAP` and `RQ4_JOBS` can
 be overridden in the environment, for tests only. The rest comes from
 `parameters.sh` (TTI, `t_up`, `A^max`, the QoS-PF and PF parameters, …).
 
 **Workers.** `-j` is the number of workers (default: one per physical core,
-as `lscpu` reports them; no more is accepted). Each worker is pinned
+as `lscpu` reports them; no more is accepted). The paper's run used `-j 50` on
+each of two servers. Each worker is pinned
 (`taskset`) to its own physical core, on its first hardware thread, and runs
 one pair at a time, the ILP and every baseline of it, so no two solvers share
 a core and the 60 s cap means the same everywhere. Each `siren` process takes
@@ -111,13 +113,21 @@ ones.
 says `ok`; relaunching with the same arguments runs only the rest, and RQ4
 skips the models that have a result. A pair that failed says `fail <methods>`
 and is run again at the next launch. The sweep stage stops with an error if
-some pair is not `ok` at its end.
+some pair is not `ok` at its end. A budget's search is done when
+`output/per_config/.rb<B>.done` exists; its CSV is written under a temporary
+name and renamed at the end, so a stopped search leaves no partial CSV and is
+run again at the next launch.
+
+**Waiting.** The `rq4`, `search` and `analysis` stages wait until every pair of
+the sweep is `ok`; `analysis` also waits until every RQ4 model has a result
+and every budget's search is done.
 
 **Shards.** With `--shard K/N`, the K-th machine takes the flowsets whose
 position in the list is K modulo N. Every machine must see the same tree (a
 shared disk). Shard 1 builds (the others wait for it), runs RQ4's `prepare`
-once every shard's sweep is done, and, once every shard's RQ4 share is done,
-the analysis; every shard solves its share of RQ4's models.
+once every shard's sweep is done, and, once every shard's RQ4 share and search
+are done, the analysis; every shard solves its share of RQ4's models, and runs
+the search on the budgets whose position in `RBS` is K modulo N.
 
 **Checks.** Every stage refuses a tree whose ILP reports do not come from
 `siren` (`config.solver` not `gurobi ...`) or whose RQ4 results were not solved
@@ -176,6 +186,7 @@ output/
 │   ├── logs/<method>/flowset_NNNN.log
 │   └── .parallel/status/flowset_NNNN           # ok, or fail <methods>
 ├── rq4_siren/flowset_NNNN/H<H*>.json            # RQ4 models, and their *.result.json
+├── per_config/rb<B>.csv, rb<B>.log              # the search, one row per tuple and method
 └── paper_run/                                   # manifests, pairs_<host>.tsv, stage logs
 ```
 

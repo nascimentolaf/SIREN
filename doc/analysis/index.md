@@ -1,11 +1,12 @@
 # Analysis
 
 `analysis/` turns the sweep's reports into verdict tables, and those into the
-paper's table, figures and LaTeX macros. Where `run_paper_experiment.sh`
+paper's tables, figures and LaTeX macros. Where `run_paper_experiment.sh`
 produces reports, these scripts reduce them to **one row per (method,
 flowset)**, so the methods can be compared. Nothing here runs a scheduler,
-except `rq4_hyperperiod.py run`, which solves the RQ4 models with `siren`. The
-CSVs, table, figures and macros of the paper's run are in `results/`, at the
+except `rq4_hyperperiod.py run`, which solves the RQ4 models with `siren`, and
+`sweep_configurations.py`, which runs the baselines on every tuple. The CSVs,
+tables, figures and macros of the paper's run are in `results/`, at the
 repository root (`results/README.md`).
 
 The distinction everything here is built on: **how a method arrives at "this
@@ -19,34 +20,42 @@ flowset is fine"**.
 | Script | Purpose |
 | :--- | :--- |
 | `collect_verdicts.py` | reports → verdict CSV |
-| `plot_paper.py` | the paper's table, figures and macros, from the RB-budget sweep and RQ4 |
+| `plot_paper.py` | the paper's tables, figures and macros, from the RB-budget sweep, RQ4 and the search |
 | `plot_evaluation.py` | plotting styles and helpers that `plot_paper.py` imports; also draws a set of evaluation figures of its own (see [Figures](figures.md)) |
 | `rq4_hyperperiod.py` | RQ4: prepare, solve and collect the ILP models of stretched hyperperiods |
+| `rq4_statistics.py` | RQ4's statistics, regressions and Table V; `plot_paper.py` calls it |
+| `sweep_configurations.py` | the search: every baseline on every tuple SIREN decided, one row per (tuple, method) |
+| `baseline_search.py` | reduces the search's per-tuple CSVs to `baseline_search.csv`, one row per (budget, baseline, flowset); `plot_paper.py` calls it |
 
-The `analysis` stage of `scripts/run_paper_experiment.sh` runs them in this
-order, from empty CSVs:
+The `search` stage of `scripts/run_paper_experiment.sh` runs
+`sweep_configurations.py` once per budget, into `output/per_config/rb<B>.csv`
+([below](#baseline-search-sweep_configurationspy-and-baseline_searchpy)).
+The `analysis` stage then runs, in this order, from empty CSVs:
 
 ```bash
 (cd scripts && ./sweep_experiment.sh --collect)               # analysis/csv/output_rb<B>.csv, output_sweep.csv
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis/csv/rq4_hyperperiod.csv
-python3 analysis/plot_paper.py --derive                       # analysis/csv/derived_*.csv
-python3 analysis/plot_paper.py                                # analysis/figures/paper/
+python3 analysis/plot_paper.py --derive                       # analysis/csv/derived_*.csv, baseline_search.csv
+python3 analysis/plot_paper.py                                # analysis/figures/paper/, rq4_statistics.csv, rq4_regression.json
 ```
 
 ## Data flow
 
 ```text
  output/sweep/rb<B>/reports/<method>/...           output/rq4_siren/flowset_*/H*.result.json
-          |                                                 |
-          v  sweep_experiment.sh --collect                  v  rq4_hyperperiod.py collect
-          |  (collect_verdicts.py per budget)               |
-          v                                                 v
- analysis/csv/output_rb<B>.csv, output_sweep.csv    analysis/csv/rq4_hyperperiod.csv
+          |                    |                            |
+          |                    v  sweep_configurations.py   v  rq4_hyperperiod.py collect
+          |          output/per_config/rb<B>.csv            |
+          v  sweep_experiment.sh --collect                  v
+          |  (collect_verdicts.py per budget)    analysis/csv/rq4_hyperperiod.csv
+          v                                                 |
+ analysis/csv/output_rb<B>.csv, output_sweep.csv            |
           |                                                 |
           +-------------> plot_paper.py <-------------------+
-                             ^      |
- output/sweep/ (--derive) ---+      v
-                         analysis/figures/paper/
+                          ^    |   (rq4_statistics.py, baseline_search.py)
+ output/sweep/,           |    v
+ output/per_config/ ------+  analysis/figures/paper/,
+ (--derive)                  analysis/csv/rq4_statistics.csv, rq4_regression.json
 ```
 
 ---
@@ -135,11 +144,13 @@ how a crashed run becomes visible.
 
 The tables, figures and numbers of the paper's Performance Evaluation section,
 from the RB-budget sweep (`B^max` in {51, 79, 107, 135}, 1000 flowsets of 4
-applications, `M = 3`, 60 s per ILP candidate, no flowset budget) and from
-RQ4 ([below](#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy)).
+applications, `M = 3`, 60 s per ILP candidate, no flowset budget), from
+RQ4 ([below](#rq4-solving-time-against-the-hyperperiod-rq4_hyperperiodpy))
+and from the search
+([below](#baseline-search-sweep_configurationspy-and-baseline_searchpy)).
 
 ```bash
-python3 analysis/plot_paper.py --derive   # the two derived CSVs, from output/sweep/
+python3 analysis/plot_paper.py --derive   # the derived CSVs, from output/sweep/ and output/per_config/
 python3 analysis/plot_paper.py            # analysis/figures/paper/
 ```
 
@@ -150,10 +161,13 @@ Its inputs are in `analysis/csv/`:
 | `output_sweep.csv` | verdicts of every budget (`sweep_experiment.sh --collect`) |
 | `derived_baseline_configs.csv` | attempts and `C` each baseline committed to, per (budget, method, flowset), extracted from `output/sweep/` by `--derive` |
 | `derived_ilp_timing_rb135.csv` | ILP time per flowset at 135 RBs, parsed from `output/sweep/rb135/logs/ilp/*.log` by `--derive`: `first_table_s` (sequential time to the first schedulable candidate) and `decide_all_s` (time to decide every candidate; both lower bounds when a candidate hit the cap), Gurobi's solve times without model building; `median_candidate_s`; `n_candidates`, `n_capped` (at the cap) and `n_errored` (solver errors); `host`, the machine that ran the flowset (the log's `Host:` line) |
-| `rq4_hyperperiod.csv` | optional: one row per RQ4 model, from `rq4_hyperperiod.py collect`; without it the RQ4 figure and macros are not written |
+| `rq4_hyperperiod.csv` | optional: one row per RQ4 model, from `rq4_hyperperiod.py collect`; without it the RQ4 figure, Table V and macros are not written |
+| `baseline_search.csv` | optional: the search, one row per (budget, baseline, flowset), written by `--derive` from `output/per_config/rb<B>.csv` (`baseline_search.py`); without it the `Search*` macros are not written |
 
 `--derive` prints `wrote derived_ilp_timing_rb135.csv: <n> rows`. If there are
-no ILP logs, it says the timing CSV was kept instead. It updates the derived
+no ILP logs, it says the timing CSV was kept instead. It then prints
+`wrote baseline_search.csv: <n> rows`, or, without per-tuple CSVs under
+`output/per_config/`, that `baseline_search.csv` was kept. It updates the derived
 CSVs from whatever `output/sweep/` holds: a (budget, method) whose reports are
 absent keeps its rows, which is why the analysis stage deletes the CSVs first.
 
@@ -164,17 +178,21 @@ QoS-PF, RR, PF).
 
 | Output (`analysis/figures/paper/`) | Shows |
 | :--- | :--- |
-| `table_rq2.tex` | RQ2: the tabular of the verdict shares (%) per budget and method (sched., undec., unsch., missed), in bold each budget's highest schedulable share and SIREN's missed share |
+| `table_rq2.tex` | RQ2 and RQ3, the paper's Table IV, one column wide: per budget, the share of the flowsets each method schedules (in bold, each budget's highest), then the median peak RB usage as a share of `B^max` on the flowsets all five methods schedule (in bold, each budget's lowest; `--` if there is no such flowset), and the number of those flowsets. Baselines whose medians coincide at every budget share one row, "All baselines". The caption, in the paper, says what the other flowsets are: proved unschedulable for SIREN, a missed deadline for a baseline |
+| `table_rq4.tex` | RQ4, the paper's Table V: per target hyperperiod `H` (ms), the mean solving time, its 95 % interval, the standard deviation, the minimum, the quartiles, the median and the maximum, in milliseconds. The number of models per hyperperiod is kept in the file, commented out of the table. Written by `rq4_statistics.py` ([below](#rq4s-statistics-rq4_statisticspy)) |
 | `fig_rq2_verdicts` | RQ2: verdict mix per method at the main budget (135) |
-| `fig_rq2_scaling` | RQ2: schedulable share against the RB budget |
-| `fig_rq3_rb_usage` | RQ3: each method's median peak RB usage as a share of `B^max`, on the flowsets all five plotted methods schedule at that budget, so that every method is measured on the same flowsets; the value is written at every point. The four baselines' peaks coincide on most flowsets (their configuration, the same for all, sets them), so their points are spread sideways and a value they share is written once, in black. A budget with no such flowset is left out |
+| `fig_rq2_scaling` | RQ2: schedulable share against the RB budget; the band of SIREN's undecided flowsets is drawn only if there are any |
+| `fig_rq3_rb_usage` | RQ3: each method's median peak RB usage as a share of `B^max`, on the flowsets all five plotted methods schedule at that budget, so that every method is measured on the same flowsets; the value is written at every point. If the four baselines' medians coincide at every budget, as in the paper's run, they are drawn as one line, "baselines". Otherwise their points are spread sideways and a value they share is written once, in black. A budget with no such flowset is left out |
 | `fig_rq3_residual_gain` | RQ3: guaranteed residual capacity the ILP leaves beyond each baseline, paired on the flowsets both schedule (median, IQR). A budget where no drawn baseline has 10 pairs (`MIN_N`) is left off the x axis and has no median macro (`--`) |
 | `fig_rq4_time` | the ILP's time to a first table, and to decide every candidate (sequential), at 135 RBs, from `derived_ilp_timing_rb135.csv` |
-| `fig_rq4_hyperperiod` | RQ4: time to decide one ILP model against its hyperperiod, log-log; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod and the time limit |
-| `numbers_results.tex` | `\newcommand` macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also `\RqFourModels`, `\RqFourFlowsets`, `\RqFourCapSec` and, per target hyperperiod spelled out digit by digit (`TwoFiveTwoZeroZero` for 25200), `\RqFourMedianSec…`, `\RqFourTimeoutShare…`, `\RqFourMedianJobs…` and `\RqFourMedianBinaries…` |
+| `fig_rq4_hyperperiod` | RQ4: time to decide one ILP model against its hyperperiod, log-log, twice as wide as the other figures (`--width`), at their height; one point per model, coloured by outcome (table found, proved infeasible, time limit), with the median per target hyperperiod. The legend lists only the outcomes that occur, the time limit is drawn only if a model reaches it, and with a single outcome the points take SIREN's colour |
+| `numbers_results.tex` | `\newcommand` macros for every number the text quotes; its second line says what they were computed on. With RQ4 results, also `\RqFourModels`, `\RqFourFlowsets`, `\RqFourCapSec` and, per target hyperperiod spelled out digit by digit (`TwoFiveTwoZeroZero` for 25200), `\RqFourMedianSec…`, `\RqFourTimeoutShare…`, `\RqFourMedianJobs…` and `\RqFourMedianBinaries…`, then the statistics and regression macros of `rq4_statistics.py`. With `baseline_search.csv`, also the `Search*` macros ([below](#baseline-search-sweep_configurationspy-and-baseline_searchpy)) |
 
-The paper prints `table_rq2.tex` (its Table IV), `fig_rq3_rb_usage` and
-`fig_rq4_hyperperiod`, and quotes the macros. Each figure is written as `.pdf`
+With RQ4 results, `plot_paper.py` also writes `analysis/csv/rq4_statistics.csv`
+and `analysis/csv/rq4_regression.json` (`rq4_statistics.py`).
+
+The paper prints `table_rq2.tex` (its Table IV) and `table_rq4.tex` (its
+Table V), and quotes the macros; it prints none of the figures. Each figure is written as `.pdf`
 and `.png`. Options: `--outdir` (default
 `analysis/figures/paper`), `--width`/`--height` (inches, 1.7 × 1.45),
 `--fontsize` (7), `--formats` (`pdf png`).
@@ -217,9 +235,11 @@ every budget (the `Amax*` macros).
 
 Each model is one flowset with one configuration per flow, solved for a table
 under the feasibility objective, on one thread, with a time limit (`--cap`,
-1 h in the paper's runs). The flowsets are a sample (`--sample`, 100) of those
-the sweep proved schedulable at the budget `--reports` names (135 RBs in
-`run_paper_experiment.sh`; the default is `rb51`), and the configuration is
+1 h in the paper's run). The flowsets are drawn (`--sample N`, default 100,
+with `--seed`) from those the sweep proved schedulable at the budget
+`--reports` names (135 RBs in `run_paper_experiment.sh`; the default is
+`rb51`). `run_paper_experiment.sh` passes `--sample 1000`, which takes all of
+them: 966 flowsets in the paper's run. The configuration is
 the sweep's minimum-peak tuple, read from
 `output/sweep/rb<B>/reports/ilp/<flowset>/offline_phase_report.json`. Each model
 records that budget (`n_rb`) and is solved at it, so the RB limit is as tight
@@ -237,18 +257,23 @@ The `rq4` stage of `run_paper_experiment.sh` runs, in `output/rq4_siren/`:
 
 ```bash
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren prepare \
-    --reports output/sweep/rb135/reports/ilp --sample 100
-python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
-    --solver offline_phase/siren/siren -j <workers> --max-h 8400 --cap 3600 --harqs 3
+    --reports output/sweep/rb135/reports/ilp --sample 1000
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren run \
     --solver offline_phase/siren/siren -j 12 --cap 3600 --harqs 3
 python3 analysis/rq4_hyperperiod.py --out output/rq4_siren collect   # analysis stage
 ```
 
-The first `run` solves the models up to 8400 ms, the second the larger ones
-(the models already solved are skipped), fewer at a time since each needs
-several GB. The paper's run used `-j 50` per server. Always pass `--solver`: its default names a binary this repository
+`run` solves 12 models at a time (`RQ4_JOBS`) at every target hyperperiod: the
+largest models need several GB each, and every target runs at the same
+concurrency, so that their times compare. The paper's run did the same on
+each of two servers (`--shard 1/2` and `--shard 2/2`), 12 models at a time per
+server. Always pass `--solver`: its default names a binary this repository
 does not ship.
+
+`prepare` breaks ties between equally good periods with a floating-point sum,
+which Python 3.12 computes differently: run it with Python 3.10 or 3.11 to
+reproduce `results/rq4_models/` byte for byte (see
+[Known issues](../known_issues.md#limitations)).
 
 `run` solves the largest models first and records, per model, the outcome,
 the solving time (the time limit for a timeout), the wall time, the peak memory
@@ -264,14 +289,121 @@ depend on how many run at once.
 
 | Subcommand | Options |
 | :--- | :--- |
-| `prepare` | `--sample N` (100), `--seed S`, `--targets ...`, `--stretch 1.5`, `--tuple {sweep,lowest-mean}`, `--reports DIR`, `--flowsets DIR`; it adds to what `--out` holds |
+| `prepare` | `--sample N` (100; `run_paper_experiment.sh` passes 1000), `--seed S`, `--targets ...`, `--stretch 1.5`, `--tuple {sweep,lowest-mean}`, `--reports DIR`, `--flowsets DIR`; it adds to what `--out` holds |
 | `run` | `--solver PATH`, `-j N`, `--cap SECONDS` (3600), `--n-rb B` (default: the budget each model records), `--harqs 3`, `--max-h MS`, `--force`, `--shard K/N` (only the K-th of N disjoint shares of the models, so N machines sharing `--out` can split them) |
 | `collect` | `--csv FILE` (`analysis/csv/rq4_hyperperiod.csv`) |
 | `extend` | `--targets ...`, `--stretch`: add targets to the flowsets already prepared |
 | `control-prepare`, `compare` | a sample of decided models solved again one at a time, and its times compared with the first run's; the paper's runs do not use it |
 
 `--out DIR`, before the subcommand, is the model directory (`output/rq4_siren`
-in the paper's runs).
+in `run_paper_experiment.sh`).
+
+### RQ4's statistics (`rq4_statistics.py`)
+
+`plot_paper.py` calls it on `analysis/csv/rq4_hyperperiod.csv`; it also runs
+alone, without the macros, and prints a summary:
+
+```bash
+python3 analysis/rq4_statistics.py [--csv FILE] [--csv-dir DIR] [--table-dir DIR]
+```
+
+| Output | Content |
+| :--- | :--- |
+| `analysis/csv/rq4_statistics.csv` (`--csv-dir`) | one row per target hyperperiod: number of models and flowsets, undecided and infeasible models, mean, median, standard deviation, variance, extremes, quartiles and interquartile range, the Student t 95 % interval of the mean and a BCa bootstrap interval beside it, the interval's half-width as a share of the mean, coefficient of variation, skewness, Tukey outliers, the number of distinct times (the mode is not meaningful on continuous times), mean time per second of `H`, median time per job, median jobs and binaries |
+| `analysis/csv/rq4_regression.json` (`--csv-dir`) | the regressions and their checks, below |
+| `analysis/figures/paper/table_rq4.tex` (`--table-dir`) | the paper's Table V |
+
+The method follows the design. Within a target the models are distinct
+flowsets, so a mean's interval is Student's t on them. Across targets the
+models of one flowset are not independent (a flowset slow at one hyperperiod
+is slow at all of them), so every regression's standard errors are clustered
+by flowset (CR1, t with G - 1 degrees of freedom). `rq4_regression.json`
+holds, among others:
+
+- the least-squares line of the solving time on `H`, both in seconds, with
+  clustered standard errors (`line`), and the naive ones for comparison;
+- two checks on its slope: the t interval of the per-flowset slopes, and a
+  bootstrap over flowsets; the line without the largest hyperperiod; the line
+  on the five means;
+- a test of exact linearity against one mean per target (clustered Wald F,
+  `lack_of_fit`), and Breusch-Pagan tests of the residuals' variance;
+- power laws on logarithmic axes, against `H`, the number of jobs and the
+  number of binaries;
+- `servers`: the same fits on each server alone, named `slower` and `faster`
+  (no host name is written), and their time ratio per target for a given
+  flowset.
+
+A model whose status is not a decision (a timeout) has only a lower bound for
+its time: the script then writes no table and no regression. A proof of
+infeasibility is a decision, and its time counts.
+
+---
+
+## Baseline search (`sweep_configurations.py` and `baseline_search.py`)
+
+A baseline is given one configuration per flow by the shared selection rule
+([Baselines](../baselines/index.md#configuration-selection)). The search asks
+what it would reach if it could search over the tuples of `prod_i P_i`
+instead, as SIREN does: it runs the baseline once on every tuple the ILP
+decided, with that tuple imposed (`FLOW_CONFIG`). A flowset is schedulable for
+"baseline + search" if one tuple meets every deadline, and its residual
+capacity is that of its lowest-peak such tuple. Such a search needs SIREN's
+configuration analysis (Section V) and an offline simulation of every tuple,
+so the paper treats "baseline + search" as an ablation of SIREN, not as a
+scheduler a gNB runs.
+
+The `search` stage of `run_paper_experiment.sh` runs, for each budget `B`:
+
+```bash
+python3 analysis/sweep_configurations.py --reports output/sweep/rb<B>/reports \
+    --flowsets output/flowsets --mcs input/mcs_configurations.json \
+    --methods must qospf rr pf --jobs <workers> --out output/per_config/rb<B>.csv
+```
+
+`sweep_configurations.py` reconstructs the tuples the ILP decided from its
+report (the first `num_combinations_tested` of the planner's candidates, in
+the ILP's order), and writes one row per (tuple, method): the `ilp` row
+repeats SIREN's verdict for the tuple, and each baseline's row has its
+verdict, deadline misses, `rb_peak` and the other checks of the verdict table.
+In the paper's run, every tuple of every flowset is decided, since SIREN has
+no budget per flowset: 9 107 705 rows per budget, about 700 MB.
+
+| Option | Meaning |
+| :--- | :--- |
+| `--reports DIR` | a `reports/<method>/<flowset>/` tree; the ILP's reports give the tuples, and the radio (RBs, HARQs, TTI) is taken from them |
+| `--flowsets DIR`, `--mcs FILE` | the flowsets and the MCS table |
+| `--methods ...` | the baselines to run (default: every method under `--reports` but `ilp`); `--exclude` drops some |
+| `--jobs N` | processes at a time (default: the CPU count) |
+| `--chunk N` | tuples per task (100) |
+| `--out FILE` | the CSV to write |
+| `--limit N`, `--flowset-list FILE` | only the first N flowsets, or those FILE names |
+| `--self-check` | assert that every decoded tuple matches the one the ILP recorded for its index |
+| `--run-timeout S` | a wall-clock limit per baseline run (0, the default, is none); a run killed there is recorded as `timeout` |
+
+`baseline_search.py derive` reduces those CSVs to
+`analysis/csv/baseline_search.csv`, one row per (budget, baseline, flowset):
+`n_tuples` (tuples run), `n_ok` (tuples on which every deadline is met) and
+`best_peak` (the lowest `rb_peak` among those). `plot_paper.py --derive` does
+the same. `baseline_search.py summary` prints, per budget and baseline, what
+`plot_paper.py` turns into macros:
+
+```bash
+python3 analysis/baseline_search.py derive [--per-config output/per_config] [--out FILE]
+python3 analysis/baseline_search.py summary
+```
+
+| Macro | Per budget and baseline |
+| :--- | :--- |
+| `NSearchRuns` | all budgets: the baseline runs of the search, the sum of `n_tuples` |
+| `SearchOk*`, `SearchN*` | share and number of the flowsets with `n_ok > 0` |
+| `SearchOnly*` | how many of those SIREN does not schedule |
+| `SearchGain*`, `SearchGain*Qone`, `SearchGain*Qthree` | on the flowsets both schedule, the median and quartiles of SIREN's gain in guaranteed residual over the baseline's lowest-peak tuple, `best_peak` minus SIREN's `rb_peak` (`--` under 10 flowsets) |
+| `SearchPaired*`, `SearchWorse*` | the number of those flowsets, and how many have a negative gain |
+| `SearchOkPfFamilyMin*`, `SearchOkPfFamilyMax*`, `SearchGainPfFamilyMin*`, `SearchGainPfFamilyMax*` | the lowest and highest of QoS-PF, RR and PF |
+
+`collect_verdicts.py --per-config FILE` prints a per-tuple summary of one of
+these CSVs, and `plot_evaluation.py --per-config FILE` draws its coverage
+figure ([Figures](figures.md)).
 
 ---
 

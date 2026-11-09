@@ -8,14 +8,17 @@ macros for every number the prose quotes. These figures are not the paper's:
 the paper's come from `plot_paper.py`.
 
 Its default inputs (`analysis/csv/output.csv` and
-`analysis/csv/results_per_configuration.csv`) are written by no script of this repository, so pass a
-verdict CSV and an output directory, for example the 135 RB verdicts a run
-writes:
+`analysis/csv/results_per_configuration.csv`) are written by no script of this
+repository, so pass a verdict CSV and an output directory, for example the
+135 RB verdicts a run writes, and, for `coverage`, a per-configuration CSV of
+the search:
 
 ```bash
 python3 analysis/plot_evaluation.py --list             # the figures it can draw
 python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
     --outdir evaluation_figures --only schedulability
+python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
+    --per-config output/per_config/rb135.csv --outdir evaluation_figures --only coverage
 ```
 
 | `--only` name | File | Shows |
@@ -35,16 +38,20 @@ python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
 | Option | Default | Used by |
 | :--- | :--- | :--- |
 | `--verdicts PATH` | `analysis/csv/output.csv` (written by no script here) | every figure except `coverage` |
-| `--per-config PATH` | `analysis/csv/results_per_configuration.csv` (written by no script here) | `coverage`, and the coverage macros |
+| `--per-config PATH` | `analysis/csv/results_per_configuration.csv` (written by no script here; pass `output/per_config/rb<B>.csv`) | `coverage`, and the coverage macros |
 | `--reports PATH` | `output/reports` | `config-space`, `config-table` (the ILP's `planner_report.json` files) |
 | `--outdir PATH` | `analysis/figures` | PDFs, PNGs, `numbers.tex`, notes |
 
 The verdict CSV is what `collect_verdicts.py` writes (see
 [Analysis](index.md#collect_verdictspy)); any CSV with the same columns works.
-The per-configuration CSV comes from a per-configuration sweep that is not
-part of this repository, so `coverage` is skipped without it.
+The per-configuration CSV is what `analysis/sweep_configurations.py` writes,
+one row per (tuple, method): the `search` stage of `run_paper_experiment.sh`
+writes one per budget, `output/per_config/rb<B>.csv` (see
+[Analysis](index.md#baseline-search-sweep_configurationspy-and-baseline_searchpy)).
+`coverage` is skipped without it.
 
-> **The coverage cache.** The per-configuration CSV can be hundreds of MB, so
+> **The coverage cache.** The per-configuration CSV can be hundreds of MB (about
+> 700 MB per budget in the paper's run), so
 > its per-flowset summary is cached in `<outdir>/.cache/coverage.csv` and
 > reused. The cache is keyed to the **output directory, not the input file**:
 > give each data set its own `--outdir`, or pass `--refresh`. A stale cache is

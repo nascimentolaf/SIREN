@@ -50,6 +50,16 @@ differs from what one would expect.</p>
 <td align="left"><code>generate_flowset/src/main.cpp</code></td>
 <td align="left">the same <code>FLOWSET_SEED</code> can draw a different batch with another C++ standard library</td>
 </tr>
+<tr>
+<td align="left">RQ4's period tie-break depends on the Python version</td>
+<td align="left"><code>stretch_periods</code> in <a href="../../analysis/rq4_hyperperiod.py"><code>rq4_hyperperiod.py</code></a></td>
+<td align="left">among the period assignments with the same largest stretch, <code>prepare</code> keeps the one of smallest <code>sum(ratios)</code>, a float sum, and Python 3.12 changed <code>sum()</code> of floats to compensated summation. With Python 3.10 or 3.11, <code>prepare</code> writes exactly the models of <code>results/rq4_models/</code>; with Python 3.12 or later, 71 of the 4816 get other periods, with the same largest stretch and the same exact sum of ratios, so equally valid</td>
+</tr>
+<tr>
+<td align="left">The two servers of the paper's run differ at large models</td>
+<td align="left"><code>rq4_regression.json</code> (<code>servers</code>), the paper's RQ4</td>
+<td align="left">the servers are identical, yet for a given flowset the large models ran slower on one of them: by about 0.3 % at <code>H*</code> = 420 ms and about 15 % at 25 200 ms (<code>slower_over_faster_same_flowset</code>). RQ4's intervals cover the flowsets, not the machine, so <code>rq4_statistics.py</code> also fits each server alone; the growth stays nearly linear on both</td>
+</tr>
 </tbody>
 </table>
 </div><h2 id="code-that-names-programs-not-in-this-repository">Code that names programs not in this repository<a class="headerlink" href="#code-that-names-programs-not-in-this-repository" title="Link to this section">#</a></h2>
@@ -64,8 +74,6 @@ differs from what one would expect.</p>
   (<code>METHOD_VARIANTS</code>, whose default names a baseline that is not shipped;
   <code>REUSE_FLOWSETS</code>, <code>CLEAN_OUTPUT</code>; the paths of other tools); see
   <a href="configuration.html#inputs-and-outputs">Configuration</a>.</li>
-<li><strong><code>analysis/collect_verdicts.py --per-config</code></strong> reads the CSV of a
-  per-configuration sweep that is not shipped.</li>
 <li><strong><code>analysis/plot_paper.py --partial --copy</code></strong> runs a script that is not
   shipped; <code>run_paper_experiment.sh</code> does not use it.</li>
 <li><strong>The analysis code knows the methods <code>edf</code>, <code>5gtps</code> and <code>5gtps_harq</code></strong>

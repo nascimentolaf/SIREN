@@ -24,12 +24,15 @@ evaluation figures from a verdict CSV, plus <code>numbers.tex</code>, <code>\new
 macros for every number the prose quotes. These figures are not the paper's:
 the paper's come from <code>plot_paper.py</code>.</p>
 <p>Its default inputs (<code>analysis/csv/output.csv</code> and
-<code>analysis/csv/results_per_configuration.csv</code>) are written by no script of this repository, so pass a
-verdict CSV and an output directory, for example the 135 RB verdicts a run
-writes:</p>
+<code>analysis/csv/results_per_configuration.csv</code>) are written by no script of this
+repository, so pass a verdict CSV and an output directory, for example the
+135 RB verdicts a run writes, and, for <code>coverage</code>, a per-configuration CSV of
+the search:</p>
 <pre><code class="language-bash">python3 analysis/plot_evaluation.py --list             # the figures it can draw
 python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
     --outdir evaluation_figures --only schedulability
+python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
+    --per-config output/per_config/rb135.csv --outdir evaluation_figures --only coverage
 </code></pre>
 <div class="table-wrap"><table>
 <thead>
@@ -104,7 +107,7 @@ python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
 </tr>
 <tr>
 <td align="left"><code>--per-config PATH</code></td>
-<td align="left"><code>analysis/csv/results_per_configuration.csv</code> (written by no script here)</td>
+<td align="left"><code>analysis/csv/results_per_configuration.csv</code> (written by no script here; pass <code>output/per_config/rb&lt;B&gt;.csv</code>)</td>
 <td align="left"><code>coverage</code>, and the coverage macros</td>
 </tr>
 <tr>
@@ -121,10 +124,14 @@ python3 analysis/plot_evaluation.py --verdicts analysis/csv/output_rb135.csv \
 </table>
 </div><p>The verdict CSV is what <code>collect_verdicts.py</code> writes (see
 <a href="index.html#collect_verdictspy">Analysis</a>); any CSV with the same columns works.
-The per-configuration CSV comes from a per-configuration sweep that is not
-part of this repository, so <code>coverage</code> is skipped without it.</p>
+The per-configuration CSV is what <code>analysis/sweep_configurations.py</code> writes,
+one row per (tuple, method): the <code>search</code> stage of <code>run_paper_experiment.sh</code>
+writes one per budget, <code>output/per_config/rb&lt;B&gt;.csv</code> (see
+<a href="index.html#baseline-search-sweep_configurationspy-and-baseline_searchpy">Analysis</a>).
+<code>coverage</code> is skipped without it.</p>
 <blockquote>
-<p><strong>The coverage cache.</strong> The per-configuration CSV can be hundreds of MB, so
+<p><strong>The coverage cache.</strong> The per-configuration CSV can be hundreds of MB (about
+700 MB per budget in the paper's run), so
 its per-flowset summary is cached in <code>&lt;outdir&gt;/.cache/coverage.csv</code> and
 reused. The cache is keyed to the <strong>output directory, not the input file</strong>:
 give each data set its own <code>--outdir</code>, or pass <code>--refresh</code>. A stale cache is

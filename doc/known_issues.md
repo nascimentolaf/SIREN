@@ -12,6 +12,8 @@ differs from what one would expect.
 | The analysis stage needs the default `OUTPUT_DIR` | [`run_paper_experiment.sh`](../scripts/run_paper_experiment.sh) | `plot_paper.py` reads `output/sweep/`; a run in another output tree can run every stage but `analysis` |
 | `sweep_experiment.sh --collect` writes into the repository's `analysis/csv/` | [`sweep_experiment.sh`](../scripts/sweep_experiment.sh) | whatever `OUTPUT_DIR` says; collect another tree with `analysis/collect_verdicts.py` directly |
 | The flowset shuffle uses `std::shuffle`, whose algorithm is implementation-defined | `generate_flowset/src/main.cpp` | the same `FLOWSET_SEED` can draw a different batch with another C++ standard library |
+| RQ4's period tie-break depends on the Python version | `stretch_periods` in [`rq4_hyperperiod.py`](../analysis/rq4_hyperperiod.py) | among the period assignments with the same largest stretch, `prepare` keeps the one of smallest `sum(ratios)`, a float sum, and Python 3.12 changed `sum()` of floats to compensated summation. With Python 3.10 or 3.11, `prepare` writes exactly the models of `results/rq4_models/`; with Python 3.12 or later, 71 of the 4816 get other periods, with the same largest stretch and the same exact sum of ratios, so equally valid |
+| The two servers of the paper's run differ at large models | `rq4_regression.json` (`servers`), the paper's RQ4 | the servers are identical, yet for a given flowset the large models ran slower on one of them: by about 0.3 % at `H*` = 420 ms and about 15 % at 25 200 ms (`slower_over_faster_same_flowset`). RQ4's intervals cover the flowsets, not the machine, so `rq4_statistics.py` also fits each server alone; the growth stays nearly linear on both |
 
 ## Code that names programs not in this repository
 
@@ -26,8 +28,6 @@ Some code refers to other tools, which this repository does not include:
   (`METHOD_VARIANTS`, whose default names a baseline that is not shipped;
   `REUSE_FLOWSETS`, `CLEAN_OUTPUT`; the paths of other tools); see
   [Configuration](configuration.md#inputs-and-outputs).
-- **`analysis/collect_verdicts.py --per-config`** reads the CSV of a
-  per-configuration sweep that is not shipped.
 - **`analysis/plot_paper.py --partial --copy`** runs a script that is not
   shipped; `run_paper_experiment.sh` does not use it.
 - **The analysis code knows the methods `edf`, `5gtps` and `5gtps_harq`**
